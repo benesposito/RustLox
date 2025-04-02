@@ -8,9 +8,10 @@ use statement::Statement;
 #[allow(dead_code)]
 pub enum ParseErrorKind {
     UnmatchedParenthesis,
-    ExpectedPrimaryExpressionBefore(Token),
+    ExpectedPrimaryExpressionBefore,
     ExpectedEndOfExpression,
     ExpectedSemicolon,
+    ExpectedIdentifier,
 }
 
 #[derive(Debug)]

@@ -7,6 +7,8 @@ use std::iter::Peekable;
 pub enum Statement {
     Expression(Expression),
     Print(Expression),
+    VariableDeclaration(String),
+    VariableDefinition(String, Expression),
 }
 
 impl Statement {
@@ -21,6 +23,7 @@ impl Statement {
                 println!("{}", expression.evaluate());
                 None
             }
+            _ => todo!("Statement evaluation not yet implemented"),
         }
     }
 }
@@ -30,6 +33,22 @@ fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<
         Token::Print => {
             tokens.next();
             Statement::Print(Expression::parse(tokens)?)
+        }
+        Token::Var => {
+            tokens.next();
+
+            let variable_name = match tokens.next() {
+                Some(Token::Identifier(identifier)) => identifier,
+                _ => return Err(ParseErrorKind::ExpectedIdentifier),
+            };
+
+            match tokens.peek() {
+                Some(Token::Equal) => {
+                    tokens.next();
+                    Statement::VariableDefinition(variable_name, Expression::parse(tokens)?)
+                }
+                _ => Statement::VariableDeclaration(variable_name),
+            }
         }
         _ => Statement::Expression(Expression::parse(tokens)?),
     };
@@ -45,6 +64,23 @@ fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<
             }
 
             Err(ParseErrorKind::ExpectedSemicolon)
+        }
+    }
+}
+
+use std::fmt;
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Statement::Expression(expression) => write!(f, "{}", expression),
+            Statement::Print(expression) => write!(f, "(print {})", expression),
+            Statement::VariableDeclaration(identifier) => {
+                write!(f, "(declare-variable {})", identifier)
+            }
+            Statement::VariableDefinition(identifier, initial_value) => {
+                write!(f, "(define-variable {} {})", identifier, initial_value)
+            }
         }
     }
 }

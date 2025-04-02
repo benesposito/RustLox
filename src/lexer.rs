@@ -77,62 +77,50 @@ impl Token {
         let mut chars = input.chars();
 
         match chars.next().expect("Expected more characters") {
-            '>' => {
-                if let Some(next_char) = chars.next() {
-                    match next_char {
-                        '=' => {
-                            *input = &input[2..];
-                            return Some(Token::GreaterEqual);
-                        }
-                        _ => (),
-                    };
-                } else {
+            '>' => match chars.next() {
+                Some('=') => {
+                    *input = &input[2..];
+                    return Some(Token::GreaterEqual);
+                }
+                Some(_) => {
                     *input = &input[1..];
                     return Some(Token::Greater);
                 }
-            }
-            '<' => {
-                if let Some(next_char) = chars.next() {
-                    match next_char {
-                        '=' => {
-                            *input = &input[2..];
-                            return Some(Token::LessEqual);
-                        }
-                        _ => (),
-                    };
-                } else {
+                None => (),
+            },
+            '<' => match chars.next() {
+                Some('=') => {
+                    *input = &input[2..];
+                    return Some(Token::LessEqual);
+                }
+                Some(_) => {
                     *input = &input[1..];
                     return Some(Token::Less);
                 }
-            }
-            '=' => {
-                if let Some(next_char) = chars.next() {
-                    match next_char {
-                        '=' => {
-                            *input = &input[2..];
-                            return Some(Token::EqualEqual);
-                        }
-                        _ => (),
-                    };
-                } else {
+                None => (),
+            },
+            '=' => match chars.next() {
+                Some('=') => {
+                    *input = &input[2..];
+                    return Some(Token::EqualEqual);
+                }
+                Some(_) => {
                     *input = &input[1..];
                     return Some(Token::Equal);
                 }
-            }
-            '!' => {
-                if let Some(next_char) = chars.next() {
-                    match next_char {
-                        '=' => {
-                            *input = &input[2..];
-                            return Some(Token::BangEqual);
-                        }
-                        _ => (),
-                    };
-                } else {
+                None => (),
+            },
+            '!' => match chars.next() {
+                Some('=') => {
+                    *input = &input[2..];
+                    return Some(Token::BangEqual);
+                }
+                Some(_) => {
                     *input = &input[1..];
                     return Some(Token::Bang);
                 }
-            }
+                None => (),
+            },
             _ => (),
         }
 

@@ -123,6 +123,6 @@ fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Ex
         Token::True => Ok(Expression::Value(Value::Boolean(true))),
         Token::False => Ok(Expression::Value(Value::Boolean(false))),
         Token::Nil => Ok(Expression::Value(Value::Nil)),
-        token => Err(ParseErrorKind::ExpectedPrimaryExpressionBefore(token)),
+        _ => Err(ParseErrorKind::ExpectedPrimaryExpressionBefore),
     }
 }
