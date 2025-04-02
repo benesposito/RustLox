@@ -1,34 +1,32 @@
+mod ast;
 mod lexer;
-mod statement;
 
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::BufReader;
+const filename: &str = "expression.lox";
 
 fn main() {
-    let f = File::open("expression.lox").unwrap();
-    let reader = BufReader::new(f);
+    let contents = std::fs::read_to_string(filename).unwrap();
+    let tokens = lexer::tokenize(&contents).unwrap();
 
-    let _: Vec<_> = reader
-        .lines()
-        .map(|line| {
-            let line = line.unwrap();
-            let tokens = lexer::tokenize(line.as_str()).unwrap();
+    println!("{}", contents);
+    //println!("{:#?}", tokens);
 
-            let statement = match statement::Statement::parse(&mut tokens.into_iter()) {
-                Ok(statement) => {
-                    let result = statement.evaluate();
-                    println!("{}", result);
+    match ast::Ast::parse(tokens.into_iter()) {
+        Ok(ast) => {
+            for statement in ast.statements {
+                if let Some(result) = statement.evaluate() {
+                    println!("> {}", result);
                 }
-                Err(error) => {
-                    let column_idx =
-                        lexer::get_position_by_token(line.as_str(), error.token_index()).1;
+            }
+        }
+        Err(errors) => {
+            let contents = std::fs::read_to_string(filename).unwrap();
 
-                    println!("{:?}:", error);
-                    println!("{}", line);
-                    println!("{}^", String::from(" ").repeat(column_idx));
-                }
-            };
-        })
-        .collect();
+            for context in lexer::get_error_contexts(&contents, &errors) {
+                println!("{:?}, {}", context.kind, context.column);
+
+                println!("{}", context.line);
+                println!("{}^", String::from(" ").repeat(context.column - 1));
+            }
+        }
+    }
 }

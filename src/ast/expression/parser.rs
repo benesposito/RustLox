@@ -1,40 +1,14 @@
-use super::*;
-
+use super::{BinaryOperator, Expression, UnaryOperator, Value};
+use crate::ast::{ParseErrorKind, ParseResult};
 use crate::lexer::Token;
 
-pub fn statement(
-    tokens: &mut Peekable<impl Iterator<Item = Token>>,
-) -> IntermediateResult<Statement> {
-    let statement = match tokens.peek().unwrap() {
-        Token::Print => {
-            tokens.next();
-            Statement::Print(Expression::parse(tokens)?)
-        }
-        _ => Statement::Expression(Expression::parse(tokens)?),
-    };
+use std::iter::Peekable;
 
-    match tokens.next() {
-        Some(token) => match token {
-            Token::Semicolon => Ok(statement),
-            _ => {
-                while let Some(token) = tokens.next() {
-                    match token {
-                        Token::Semicolon => {
-                            break;
-                        }
-                        _ => (),
-                    }
-                }
-                Err(ParseErrorKind::ExpectedSemicolon)
-            }
-        },
-        None => Err(ParseErrorKind::ExpectedSemicolon),
-    }
+pub fn expression(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
+    equality(tokens)
 }
 
-pub fn equality(
-    tokens: &mut Peekable<impl Iterator<Item = Token>>,
-) -> IntermediateResult<Expression> {
+fn equality(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     let mut expression = comparison(tokens)?;
 
     loop {
@@ -55,9 +29,7 @@ pub fn equality(
     }
 }
 
-pub fn comparison(
-    tokens: &mut Peekable<impl Iterator<Item = Token>>,
-) -> IntermediateResult<Expression> {
+fn comparison(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     let mut expression = term(tokens)?;
 
     loop {
@@ -80,7 +52,7 @@ pub fn comparison(
     }
 }
 
-pub fn term(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> IntermediateResult<Expression> {
+fn term(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     let mut expression = factor(tokens)?;
 
     loop {
@@ -101,9 +73,7 @@ pub fn term(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> IntermediateR
     }
 }
 
-pub fn factor(
-    tokens: &mut Peekable<impl Iterator<Item = Token>>,
-) -> IntermediateResult<Expression> {
+fn factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     let mut expression = unary(tokens)?;
 
     loop {
@@ -124,7 +94,7 @@ pub fn factor(
     }
 }
 
-pub fn unary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> IntermediateResult<Expression> {
+fn unary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     let operator = match tokens.peek().expect("Expected unary or primary expression") {
         Token::Minus => UnaryOperator::Negate,
         Token::Bang => UnaryOperator::Not,
@@ -135,17 +105,10 @@ pub fn unary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Intermediate
     Ok(Expression::Unary(operator, Box::new(unary(tokens)?)))
 }
 
-pub fn primary(
-    tokens: &mut Peekable<impl Iterator<Item = Token>>,
-) -> IntermediateResult<Expression> {
+fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     match tokens.next().expect("Expected primary expression") {
-        Token::NumericLiteral(value) => Ok(Expression::Value(Value::Numeric(value))),
-        Token::StringLiteral(value) => Ok(Expression::Value(Value::Str(value.clone()))),
-        Token::True => Ok(Expression::Value(Value::Boolean(true))),
-        Token::False => Ok(Expression::Value(Value::Boolean(false))),
-        Token::Nil => Ok(Expression::Value(Value::Nil)),
         Token::LeftParenthesis => {
-            let expression = Expression::parse(tokens)?;
+            let expression = expression(tokens)?;
 
             match tokens.next() {
                 Some(token) => match token {
@@ -155,12 +118,11 @@ pub fn primary(
                 None => Err(ParseErrorKind::UnmatchedParenthesis),
             }
         }
+        Token::NumericLiteral(value) => Ok(Expression::Value(Value::Numeric(value))),
+        Token::StringLiteral(value) => Ok(Expression::Value(Value::Str(value.clone()))),
+        Token::True => Ok(Expression::Value(Value::Boolean(true))),
+        Token::False => Ok(Expression::Value(Value::Boolean(false))),
+        Token::Nil => Ok(Expression::Value(Value::Nil)),
         token => Err(ParseErrorKind::ExpectedPrimaryExpressionBefore(token)),
-    }
-}
-
-impl ParseError {
-    pub fn token_index(self: &Self) -> usize {
-        self.token_index
     }
 }

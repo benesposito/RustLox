@@ -52,7 +52,7 @@ pub enum Token {
 
     Print,
 
-    Eof,
+    Newline,
 }
 
 impl Token {
@@ -65,7 +65,7 @@ impl Token {
             .expect("Expression is unexpectedly empty")
             .is_ascii_digit()
         {
-            Some(Self::extract_numeric_literal(input))
+            Self::extract_numeric_literal(input)
         } else if input.starts_with("\"") {
             Self::extract_string_literal(input)
         } else {
@@ -76,7 +76,7 @@ impl Token {
     fn extract_fixed_token(input: &mut &str) -> Option<Self> {
         let mut chars = input.chars();
 
-        match chars.next().unwrap() {
+        match chars.next().expect("Expected more characters") {
             '>' => {
                 if let Some(next_char) = chars.next() {
                     match next_char {
@@ -134,7 +134,7 @@ impl Token {
                 }
             }
             _ => (),
-        };
+        }
 
         let token_map = BTreeMap::from([
             ("(", Token::LeftParenthesis),
@@ -164,6 +164,7 @@ impl Token {
             ("and", Token::And),
             ("or", Token::Or),
             ("print", Token::Print),
+            ("\n", Token::Newline),
         ]);
 
         for (token_string, token) in &token_map {
@@ -176,7 +177,7 @@ impl Token {
         None
     }
 
-    fn extract_numeric_literal(input: &mut &str) -> Self {
+    fn extract_numeric_literal(input: &mut &str) -> Option<Self> {
         let find_end_idx = || {
             for (i, c) in input.chars().enumerate() {
                 if !(c.is_ascii_digit() || c == '.') {
@@ -191,7 +192,9 @@ impl Token {
         let token = &input[..end];
         *input = &input[end..];
 
-        Self::NumericLiteral(token.parse().expect("Failed to parse NumericLiteral"))
+        Some(Self::NumericLiteral(
+            token.parse().expect("Failed to parse NumericLiteral"),
+        ))
     }
 
     fn extract_string_literal(input: &mut &str) -> Option<Self> {
@@ -222,29 +225,93 @@ impl Token {
 pub fn tokenize(mut input: &str) -> Option<Vec<Token>> {
     let mut tokens: Vec<Token> = Vec::new();
 
-    input = input.trim_ascii_start();
+    input = input.trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
 
     while !input.is_empty() {
         match Token::extract(&mut input) {
-            Some(token) => tokens.push(token),
+            Some(token) => {
+                tokens.push(token);
+            }
             None => return None,
         }
 
-        input = input.trim_ascii_start();
+        input = input.trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
     }
 
     Some(tokens)
 }
 
-pub fn get_position_by_token(mut input: &str, token_index: usize) -> (usize, usize) {
-    let orig_len = input.len();
+pub struct ErrorContext<'a> {
+    pub kind: crate::ast::ParseErrorKind,
+    pub line: &'a str,
+    pub column: usize,
+}
 
-    for _ in 0..(token_index - 1) {
-        input = input.trim_ascii_start();
-        Token::extract(&mut input);
+#[derive(Debug)]
+struct PartialErrorContext {
+    kind: crate::ast::ParseErrorKind,
+    column: usize,
+}
+
+pub fn get_error_contexts<'a>(
+    mut input: &'a str,
+    errors: &Vec<crate::ast::ParseError>,
+) -> Vec<ErrorContext<'a>> {
+    let mut contexts: Vec<ErrorContext> = Vec::with_capacity(errors.len());
+    let mut partials: Vec<PartialErrorContext> = Vec::new();
+
+    let errors = errors.iter().scan(0, |prev_token_index, error| {
+        let new_error = crate::ast::ParseError {
+            kind: error.kind.clone(),
+            token_index: error.token_index - *prev_token_index,
+        };
+
+        *prev_token_index = error.token_index;
+        Some(new_error)
+    });
+
+    let mut start_of_line = input;
+    let mut column: usize = 0;
+
+    for error in errors {
+        for _ in 0..error.token_index {
+            while input.chars().next().unwrap().is_whitespace()
+                && input.chars().next().unwrap() != '\n'
+            {
+                input = &input[1..];
+                column += 1;
+            }
+
+            let original_input_len = input.len();
+            match Token::extract(&mut input).expect("Tokens have already been validated") {
+                Token::Newline => {
+                    contexts.extend(partials.into_iter().map(|partial| ErrorContext {
+                        kind: partial.kind.clone(),
+                        line: &start_of_line[0..column],
+                        column: partial.column,
+                    }));
+
+                    partials = Vec::new();
+                    start_of_line = input;
+                    column = 0;
+                }
+                _ => {
+                    column += original_input_len - input.len();
+                }
+            }
+        }
+
+        partials.push(PartialErrorContext {
+            kind: error.kind.clone(),
+            column,
+        });
     }
 
-    input = input.trim_ascii_start();
+    contexts.extend(partials.into_iter().map(|partial| ErrorContext {
+        kind: partial.kind.clone(),
+        line: &start_of_line[0..column],
+        column: partial.column,
+    }));
 
-    (0, orig_len - input.len())
+    contexts
 }

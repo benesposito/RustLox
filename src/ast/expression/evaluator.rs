@@ -1,7 +1,8 @@
-use super::*;
+use super::{BinaryOperator, Expression, UnaryOperator, Value};
 
-pub fn evaluate_expression(expression: &Expression) -> Value {
+pub fn evaluate(expression: &Expression) -> Value {
     match expression {
+        Expression::Grouping(expression) => expression.evaluate(),
         Expression::Value(value) => value.clone(),
         Expression::Unary(operator, expression) => match operator {
             UnaryOperator::Negate => match expression.evaluate() {
@@ -67,13 +68,5 @@ pub fn evaluate_expression(expression: &Expression) -> Value {
             }
             _ => todo!("Binary operator not yet supported"),
         },
-        Expression::Grouping(expression) => expression.evaluate(),
-    }
-}
-
-pub fn evaluate_statement(statement: &Statement) -> Value {
-    match statement {
-        Statement::Expression(expression) => expression.evaluate(),
-        Statement::Print(expression) => expression.evaluate(),
     }
 }
