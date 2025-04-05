@@ -1,5 +1,6 @@
-use super::expression::Expression;
+use super::expression::{Expression, Value};
 use super::{ParseErrorKind, ParseResult};
+use crate::environment::Environment;
 use crate::lexer::Token;
 
 use std::iter::Peekable;
@@ -16,14 +17,22 @@ impl Statement {
         statement(tokens)
     }
 
-    pub fn evaluate(&self) -> Option<super::expression::Value> {
+    pub fn evaluate(&self, environment: &mut Environment) -> Option<Value> {
         match self {
-            Statement::Expression(expression) => Some(expression.evaluate()),
+            Statement::Expression(expression) => Some(expression.evaluate(environment)),
             Statement::Print(expression) => {
-                println!("{}", expression.evaluate());
+                println!("{}", expression.evaluate(environment));
                 None
             }
-            _ => todo!("Statement evaluation not yet implemented"),
+            Statement::VariableDeclaration(identifier) => {
+                environment.declare_variable(identifier);
+                None
+            }
+            Statement::VariableDefinition(identifier, expression) => {
+                let value = expression.evaluate(environment);
+                environment.define_variable(identifier, value);
+                None
+            }
         }
     }
 }

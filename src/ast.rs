@@ -1,5 +1,5 @@
-mod expression;
-mod statement;
+pub mod expression;
+pub mod statement;
 
 use crate::lexer::Token;
 use statement::Statement;

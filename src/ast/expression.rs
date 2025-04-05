@@ -2,6 +2,7 @@ mod evaluator;
 mod parser;
 
 use super::ParseResult;
+use crate::environment::Environment;
 use crate::lexer::Token;
 
 pub enum Expression {
@@ -18,8 +19,8 @@ impl Expression {
         parser::expression(tokens)
     }
 
-    pub fn evaluate(&self) -> Value {
-        evaluator::evaluate(self)
+    pub fn evaluate(&self, environment: &mut Environment) -> Value {
+        evaluator::evaluate(self, environment)
     }
 }
 
@@ -44,7 +45,7 @@ pub enum UnaryOperator {
     Not,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Numeric(f64),
     Str(String),

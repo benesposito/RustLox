@@ -1,4 +1,6 @@
 mod ast;
+mod environment;
+mod evaluator;
 mod lexer;
 
 const FILENAME: &str = "statements.lox";
@@ -8,7 +10,6 @@ fn main() {
     let tokens = lexer::tokenize(&contents).unwrap();
 
     println!("{}", contents);
-    //println!("{:#?}", tokens);
 
     match ast::Ast::parse(tokens.into_iter()) {
         Ok(ast) => {
@@ -16,11 +17,11 @@ fn main() {
                 println!("{}", statement);
             }
 
-            for statement in ast.statements.iter() {
-                if let Some(result) = statement.evaluate() {
-                    println!("> {}", result);
-                }
-            }
+            let mut evaluator = evaluator::Evaluator::new(ast);
+            evaluator.evaluate();
+
+            println!();
+            println!("{:?}", evaluator.environment);
         }
         Err(errors) => {
             let contents = std::fs::read_to_string(FILENAME).unwrap();
