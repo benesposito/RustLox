@@ -1,6 +1,7 @@
-use super::expression::{Expression, Value};
+use super::expression::Expression;
 use super::{ParseErrorKind, ParseResult};
 use crate::environment::Environment;
+use crate::evaluator::RuntimeError;
 use crate::lexer::Token;
 
 use std::iter::Peekable;
@@ -17,21 +18,21 @@ impl Statement {
         statement(tokens)
     }
 
-    pub fn evaluate(&self, environment: &mut Environment) -> Option<Value> {
+    pub fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError> {
         match self {
-            Statement::Expression(expression) => Some(expression.evaluate(environment)),
+            Statement::Expression(expression) => expression.evaluate(environment).map(|_| ()),
             Statement::Print(expression) => {
-                println!("{}", expression.evaluate(environment));
-                None
+                println!("{}", expression.evaluate(environment)?);
+                Ok(())
             }
             Statement::VariableDeclaration(identifier) => {
                 environment.declare_variable(identifier);
-                None
+                Ok(())
             }
             Statement::VariableDefinition(identifier, expression) => {
-                let value = expression.evaluate(environment);
+                let value = expression.evaluate(environment)?;
                 environment.define_variable(identifier, value);
-                None
+                Ok(())
             }
         }
     }

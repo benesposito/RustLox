@@ -21,4 +21,8 @@ impl Environment {
     pub fn define_variable(&mut self, identifier: &str, value: Value) {
         self.variables.insert(String::from(identifier), value);
     }
+
+    pub fn lookup_variable(&self, identifier: &str) -> Option<Value> {
+        self.variables.get(identifier).cloned()
+    }
 }

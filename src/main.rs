@@ -11,18 +11,8 @@ fn main() {
 
     println!("{}", contents);
 
-    match ast::Ast::parse(tokens.into_iter()) {
-        Ok(ast) => {
-            for statement in ast.statements.iter() {
-                println!("{}", statement);
-            }
-
-            let mut evaluator = evaluator::Evaluator::new(ast);
-            evaluator.evaluate();
-
-            println!();
-            println!("{:?}", evaluator.environment);
-        }
+    let ast = match ast::Ast::parse(tokens.into_iter()) {
+        Ok(ast) => ast,
         Err(errors) => {
             let contents = std::fs::read_to_string(FILENAME).unwrap();
 
@@ -32,6 +22,21 @@ fn main() {
                 println!("{}", context.line);
                 println!("{}^", String::from(" ").repeat(context.column - 1));
             }
+
+            return;
         }
+    };
+
+    for statement in ast.statements.iter() {
+        println!("{}", statement);
     }
+
+    let mut evaluator = evaluator::Evaluator::new(ast);
+
+    if let Err(error) = evaluator.evaluate() {
+        println!("error: {:?}", error);
+    }
+
+    println!();
+    println!("{:?}", evaluator.environment);
 }

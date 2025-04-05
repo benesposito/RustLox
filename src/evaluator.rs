@@ -1,6 +1,11 @@
 use crate::ast::Ast;
 use crate::environment::Environment;
 
+#[derive(Debug)]
+pub enum RuntimeError {
+    VariableDoesNotExist,
+}
+
 pub struct Evaluator {
     ast: Ast,
     pub environment: Environment,
@@ -14,11 +19,11 @@ impl Evaluator {
         }
     }
 
-    pub fn evaluate(&mut self) {
+    pub fn evaluate(&mut self) -> Result<(), RuntimeError> {
         for statement in self.ast.statements.iter() {
-            if let Some(result) = statement.evaluate(&mut self.environment) {
-                println!("> {}", result);
-            }
+            statement.evaluate(&mut self.environment)?;
         }
+
+        Ok(())
     }
 }

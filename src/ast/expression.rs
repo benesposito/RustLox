@@ -3,11 +3,13 @@ mod parser;
 
 use super::ParseResult;
 use crate::environment::Environment;
+use crate::evaluator::RuntimeError;
 use crate::lexer::Token;
 
 pub enum Expression {
     Grouping(Box<Expression>),
     Value(Value),
+    Variable(String),
     Unary(UnaryOperator, Box<Expression>),
     Binary(Box<Expression>, BinaryOperator, Box<Expression>),
 }
@@ -19,7 +21,7 @@ impl Expression {
         parser::expression(tokens)
     }
 
-    pub fn evaluate(&self, environment: &mut Environment) -> Value {
+    pub fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
         evaluator::evaluate(self, environment)
     }
 }
@@ -58,6 +60,7 @@ use std::fmt;
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expression::Variable(name) => write!(f, "{}", name),
             Expression::Value(value) => write!(f, "{}", value),
             Expression::Unary(operator, right) => {
                 write!(f, "({} {})", operator, right)
