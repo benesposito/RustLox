@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Token {
@@ -55,6 +53,51 @@ pub enum Token {
     Newline,
 }
 
+/* TODO: measure relative frequencies of each token and order this
+ * vector accordingly.
+ *
+ * Additionally, test whether checking shorter but less frequent tokens
+ * before more frequent but longer tokens has a measurable difference.
+ */
+const TOKEN_MAP: &[(&str, Token)] = &[
+    (">=", Token::GreaterEqual),
+    (">", Token::Greater),
+    ("<=", Token::LessEqual),
+    ("<", Token::Less),
+    ("==", Token::EqualEqual),
+    ("=", Token::Equal),
+    ("!=", Token::BangEqual),
+    ("!", Token::Bang),
+    ("(", Token::LeftParenthesis),
+    (")", Token::RightParenthesis),
+    ("{", Token::LeftBrace),
+    ("}", Token::RightBrace),
+    (",", Token::Comma),
+    (".", Token::Dot),
+    ("-", Token::Minus),
+    ("+", Token::Plus),
+    (";", Token::Semicolon),
+    ("/", Token::ForwardSlash),
+    ("*", Token::Asterisk),
+    ("true", Token::True),
+    ("false", Token::False),
+    ("nil", Token::Nil),
+    ("var", Token::Var),
+    ("if", Token::If),
+    ("else", Token::Else),
+    ("for", Token::For),
+    ("while", Token::While),
+    ("fun", Token::Fun),
+    ("return", Token::Return),
+    ("class", Token::Class),
+    ("this", Token::This),
+    ("super", Token::Super),
+    ("and", Token::And),
+    ("or", Token::Or),
+    ("print", Token::Print),
+    ("\n", Token::Newline),
+];
+
 impl Token {
     fn extract(input: &mut &str) -> Option<Self> {
         if let Some(token) = Self::extract_fixed_token(input) {
@@ -74,88 +117,7 @@ impl Token {
     }
 
     fn extract_fixed_token(input: &mut &str) -> Option<Self> {
-        let mut chars = input.chars();
-
-        match chars.next().expect("Expected more characters") {
-            '>' => match chars.next() {
-                Some('=') => {
-                    *input = &input[2..];
-                    return Some(Token::GreaterEqual);
-                }
-                Some(_) => {
-                    *input = &input[1..];
-                    return Some(Token::Greater);
-                }
-                None => (),
-            },
-            '<' => match chars.next() {
-                Some('=') => {
-                    *input = &input[2..];
-                    return Some(Token::LessEqual);
-                }
-                Some(_) => {
-                    *input = &input[1..];
-                    return Some(Token::Less);
-                }
-                None => (),
-            },
-            '=' => match chars.next() {
-                Some('=') => {
-                    *input = &input[2..];
-                    return Some(Token::EqualEqual);
-                }
-                Some(_) => {
-                    *input = &input[1..];
-                    return Some(Token::Equal);
-                }
-                None => (),
-            },
-            '!' => match chars.next() {
-                Some('=') => {
-                    *input = &input[2..];
-                    return Some(Token::BangEqual);
-                }
-                Some(_) => {
-                    *input = &input[1..];
-                    return Some(Token::Bang);
-                }
-                None => (),
-            },
-            _ => (),
-        }
-
-        let token_map = BTreeMap::from([
-            ("(", Token::LeftParenthesis),
-            (")", Token::RightParenthesis),
-            ("{", Token::LeftBrace),
-            ("}", Token::RightBrace),
-            (",", Token::Comma),
-            (".", Token::Dot),
-            ("-", Token::Minus),
-            ("+", Token::Plus),
-            (";", Token::Semicolon),
-            ("/", Token::ForwardSlash),
-            ("*", Token::Asterisk),
-            ("true", Token::True),
-            ("false", Token::False),
-            ("nil", Token::Nil),
-            ("var", Token::Var),
-            ("if", Token::If),
-            ("else", Token::Else),
-            ("for", Token::For),
-            ("while", Token::While),
-            ("fun", Token::Fun),
-            ("return", Token::Return),
-            ("class", Token::Class),
-            ("this", Token::This),
-            ("super", Token::Super),
-            ("and", Token::And),
-            ("or", Token::Or),
-            ("print", Token::Print),
-            ("\n", Token::Newline),
-        ]);
-
-        for (token_string, token) in &token_map {
+        for (token_string, token) in TOKEN_MAP {
             if let Some(rest_of_input) = input.strip_prefix(token_string) {
                 *input = rest_of_input;
                 return Some(token.clone());
