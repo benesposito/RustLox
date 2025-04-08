@@ -79,7 +79,32 @@ pub fn evaluate(
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value == right_value))
                     }
+                    (Value::Boolean(left_value), Value::Boolean(right_value)) => {
+                        Ok(Value::Boolean(left_value == right_value))
+                    }
                     _ => todo!("== operator not supported for types"),
+                }
+            }
+            BinaryOperator::And => {
+                match (
+                    left_expression.evaluate(environment)?,
+                    right_expression.evaluate(environment)?,
+                ) {
+                    (Value::Boolean(left_value), Value::Boolean(right_value)) => {
+                        Ok(Value::Boolean(left_value && right_value))
+                    }
+                    _ => todo!("and operator not supported for types"),
+                }
+            }
+            BinaryOperator::Or => {
+                match (
+                    left_expression.evaluate(environment)?,
+                    right_expression.evaluate(environment)?,
+                ) {
+                    (Value::Boolean(left_value), Value::Boolean(right_value)) => {
+                        Ok(Value::Boolean(left_value || right_value))
+                    }
+                    _ => todo!("or operator not supported for types"),
                 }
             }
             BinaryOperator::Inequality => {
@@ -90,10 +115,56 @@ pub fn evaluate(
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value != right_value))
                     }
+                    (Value::Boolean(left_value), Value::Boolean(right_value)) => {
+                        Ok(Value::Boolean(left_value != right_value))
+                    }
                     _ => todo!("!= operator not supported for types"),
                 }
             }
-            _ => todo!("Binary operator not yet supported"),
+            BinaryOperator::GreaterThan => {
+                match (
+                    left_expression.evaluate(environment)?,
+                    right_expression.evaluate(environment)?,
+                ) {
+                    (Value::Numeric(left_value), Value::Numeric(right_value)) => {
+                        Ok(Value::Boolean(left_value > right_value))
+                    }
+                    _ => todo!("> operator not supported for types"),
+                }
+            }
+            BinaryOperator::GreaterThanOrEqualTo => {
+                match (
+                    left_expression.evaluate(environment)?,
+                    right_expression.evaluate(environment)?,
+                ) {
+                    (Value::Numeric(left_value), Value::Numeric(right_value)) => {
+                        Ok(Value::Boolean(left_value >= right_value))
+                    }
+                    _ => todo!(">= operator not supported for types"),
+                }
+            }
+            BinaryOperator::LessThan => {
+                match (
+                    left_expression.evaluate(environment)?,
+                    right_expression.evaluate(environment)?,
+                ) {
+                    (Value::Numeric(left_value), Value::Numeric(right_value)) => {
+                        Ok(Value::Boolean(left_value < right_value))
+                    }
+                    _ => todo!("< operator not supported for types"),
+                }
+            }
+            BinaryOperator::LessThanOrEqualTo => {
+                match (
+                    left_expression.evaluate(environment)?,
+                    right_expression.evaluate(environment)?,
+                ) {
+                    (Value::Numeric(left_value), Value::Numeric(right_value)) => {
+                        Ok(Value::Boolean(left_value <= right_value))
+                    }
+                    _ => todo!("<= operator not supported for types"),
+                }
+            }
         },
     }
 }

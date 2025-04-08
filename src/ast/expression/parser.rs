@@ -5,7 +5,47 @@ use crate::lexer::Token;
 use std::iter::Peekable;
 
 pub fn expression(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
-    equality(tokens)
+    logical_or(tokens)
+}
+
+fn logical_or(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
+    let mut expression = logical_and(tokens)?;
+
+    loop {
+        let Some(token) = tokens.peek() else {
+            return Ok(expression);
+        };
+
+        let operator = match token {
+            Token::Or => BinaryOperator::Or,
+            _ => return Ok(expression),
+        };
+
+        tokens.next();
+
+        let right = logical_and(tokens)?;
+        expression = Expression::Binary(Box::new(expression), operator, Box::new(right));
+    }
+}
+
+fn logical_and(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
+    let mut expression = equality(tokens)?;
+
+    loop {
+        let Some(token) = tokens.peek() else {
+            return Ok(expression);
+        };
+
+        let operator = match token {
+            Token::And => BinaryOperator::And,
+            _ => return Ok(expression),
+        };
+
+        tokens.next();
+
+        let right = equality(tokens)?;
+        expression = Expression::Binary(Box::new(expression), operator, Box::new(right));
+    }
 }
 
 fn equality(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
