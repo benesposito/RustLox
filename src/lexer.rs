@@ -1,6 +1,5 @@
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub enum Token {
+pub enum FixedToken {
     /* Symbols */
     LeftParenthesis,
     RightParenthesis,
@@ -23,9 +22,6 @@ pub enum Token {
     Semicolon,
 
     /* Literals */
-    Identifier(String),
-    StringLiteral(String),
-    NumericLiteral(f64),
     True,
     False,
     Nil,
@@ -50,7 +46,17 @@ pub enum Token {
 
     Print,
 
+    /* Misc */
     Newline,
+}
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub enum Token {
+    FixedToken(FixedToken),
+    Identifier(String),
+    StringLiteral(String),
+    NumericLiteral(f64),
 }
 
 /* TODO: measure relative frequencies of each token and order this
@@ -58,44 +64,49 @@ pub enum Token {
  *
  * Additionally, test whether checking shorter but less frequent tokens
  * before more frequent but longer tokens has a measurable difference.
+ *
+ * Note: longer fixed tokens which contain tokens within them (>=, <=, ==, !=)
+ * must come before their shorter subtokens in order to be parsed correctly.
+ *
+ * Note: Minus is not in this map as it is separately checked to avoid the cost of determining
+ * whether it is a part of a numeric literal.
  */
-const TOKEN_MAP: &[(&str, Token)] = &[
-    (">=", Token::GreaterEqual),
-    (">", Token::Greater),
-    ("<=", Token::LessEqual),
-    ("<", Token::Less),
-    ("==", Token::EqualEqual),
-    ("=", Token::Equal),
-    ("!=", Token::BangEqual),
-    ("!", Token::Bang),
-    ("(", Token::LeftParenthesis),
-    (")", Token::RightParenthesis),
-    ("{", Token::LeftBrace),
-    ("}", Token::RightBrace),
-    (",", Token::Comma),
-    (".", Token::Dot),
-    ("-", Token::Minus),
-    ("+", Token::Plus),
-    (";", Token::Semicolon),
-    ("/", Token::ForwardSlash),
-    ("*", Token::Asterisk),
-    ("true", Token::True),
-    ("false", Token::False),
-    ("nil", Token::Nil),
-    ("var", Token::Var),
-    ("if", Token::If),
-    ("else", Token::Else),
-    ("for", Token::For),
-    ("while", Token::While),
-    ("fun", Token::Fun),
-    ("return", Token::Return),
-    ("class", Token::Class),
-    ("this", Token::This),
-    ("super", Token::Super),
-    ("and", Token::And),
-    ("or", Token::Or),
-    ("print", Token::Print),
-    ("\n", Token::Newline),
+const FIXED_TOKEN_MAP: &[(&str, FixedToken)] = &[
+    (">=", FixedToken::GreaterEqual),
+    (">", FixedToken::Greater),
+    ("<=", FixedToken::LessEqual),
+    ("<", FixedToken::Less),
+    ("==", FixedToken::EqualEqual),
+    ("=", FixedToken::Equal),
+    ("!=", FixedToken::BangEqual),
+    ("!", FixedToken::Bang),
+    ("(", FixedToken::LeftParenthesis),
+    (")", FixedToken::RightParenthesis),
+    ("{", FixedToken::LeftBrace),
+    ("}", FixedToken::RightBrace),
+    (",", FixedToken::Comma),
+    (".", FixedToken::Dot),
+    ("+", FixedToken::Plus),
+    (";", FixedToken::Semicolon),
+    ("/", FixedToken::ForwardSlash),
+    ("*", FixedToken::Asterisk),
+    ("true", FixedToken::True),
+    ("false", FixedToken::False),
+    ("nil", FixedToken::Nil),
+    ("var", FixedToken::Var),
+    ("if", FixedToken::If),
+    ("else", FixedToken::Else),
+    ("for", FixedToken::For),
+    ("while", FixedToken::While),
+    ("fun", FixedToken::Fun),
+    ("return", FixedToken::Return),
+    ("class", FixedToken::Class),
+    ("this", FixedToken::This),
+    ("super", FixedToken::Super),
+    ("and", FixedToken::And),
+    ("or", FixedToken::Or),
+    ("print", FixedToken::Print),
+    ("\n", FixedToken::Newline),
 ];
 
 impl Token {
@@ -117,10 +128,28 @@ impl Token {
     }
 
     fn extract_fixed_token(input: &mut &str) -> Option<Self> {
-        for (token_string, token) in TOKEN_MAP {
+        for (token_string, token) in FIXED_TOKEN_MAP {
             if let Some(rest_of_input) = input.strip_prefix(token_string) {
                 *input = rest_of_input;
-                return Some(token.clone());
+                return Some(Token::FixedToken(token.clone()));
+            }
+        }
+
+        /* Check for minus token only if it is not followed by a numeric. Doing
+         * this after checking the map keeps the hot path fast, since otherwise
+         * we'd have to if an if check on whether the token is a minus in every
+         * iteration.
+         */
+        let mut chars = input.chars();
+
+        if matches!(chars.next(), Some('-')) {
+            match chars.next() {
+                Some(c) if !c.is_numeric() => {
+                    let rest_of_input = input.strip_prefix('-').unwrap();
+                    *input = rest_of_input;
+                    return Some(Token::FixedToken(FixedToken::Minus));
+                }
+                _ => (),
             }
         }
 
@@ -128,17 +157,23 @@ impl Token {
     }
 
     fn extract_numeric_literal(input: &mut &str) -> Option<Self> {
-        let find_end_idx = || {
-            for (i, c) in input.chars().enumerate() {
+        let end = (|| {
+            let mut chars = input.chars().peekable();
+            let has_sign = matches!(chars.peek(), Some('-'));
+
+            if has_sign {
+                chars.next();
+            }
+
+            for (i, c) in chars.enumerate() {
                 if !(c.is_ascii_digit() || c == '.') {
-                    return i;
+                    return i + if has_sign { 1 } else { 0 };
                 }
             }
 
             input.len()
-        };
+        })();
 
-        let end = find_end_idx();
         let token = &input[..end];
         *input = &input[end..];
 
@@ -234,7 +269,7 @@ pub fn get_error_contexts<'a>(
 
             let original_input_len = input.len();
             match Token::extract(&mut input).expect("Tokens have already been validated") {
-                Token::Newline => {
+                Token::FixedToken(FixedToken::Newline) => {
                     contexts.extend(partials.into_iter().map(|partial| ErrorContext {
                         kind: partial.kind.clone(),
                         line: &start_of_line[0..column],
@@ -264,4 +299,61 @@ pub fn get_error_contexts<'a>(
     }));
 
     contexts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::prelude::Distribution;
+    use rand::prelude::IndexedRandom;
+
+    fn generate_numeric_literal(rng: &mut impl rand::Rng) -> (String, Token) {
+        let range = rand_distr::Frechet::new(0.0, 2.0, 0.1).unwrap();
+        let value = range.sample(rng) * (*[-1.0, 1.0].choose(rng).unwrap());
+
+        println!("{:?}", (value.to_string(), Token::NumericLiteral(value)));
+        (value.to_string(), Token::NumericLiteral(value))
+    }
+
+    #[test]
+    fn test_extract_fixed_token() {
+        for &(mut token_string, ref expected_token) in FIXED_TOKEN_MAP {
+            assert!(matches!(
+                Token::extract_fixed_token(&mut token_string),
+                Some(Token::FixedToken(actual_token)) if std::mem::discriminant(&actual_token) == std::mem::discriminant(&expected_token)
+            ));
+        }
+    }
+
+    #[test]
+    fn test_extract_numeric_literal() {
+        let mut rng = rand::rng();
+
+        let mut should = std::collections::HashMap::from([
+            (String::from("0"), Token::NumericLiteral(0f64)),
+            (String::from("-0"), Token::NumericLiteral(0f64)),
+            (String::from("123.456"), Token::NumericLiteral(123.456)),
+            (String::from("-123.456"), Token::NumericLiteral(-123.456)),
+        ]);
+
+        for _ in 0..10 {
+            should.extend([generate_numeric_literal(&mut rng)]);
+        }
+
+        let should_not = std::collections::HashMap::from([
+            (String::from("0"), Token::NumericLiteral(0.5f64)),
+            (String::from("1234"), Token::NumericLiteral(1234.1f64)),
+        ]);
+
+        let should = should.into_iter().map(|pair| (true, pair.0, pair.1));
+        let should_not = should_not.into_iter().map(|pair| (false, pair.0, pair.1));
+        let records = should.chain(should_not);
+
+        for record in records {
+            assert!(
+                record.0
+                    == matches!((Token::extract_numeric_literal(&mut record.1.as_str()), record.2), (Some(Token::NumericLiteral(actual_value)), Token::NumericLiteral(expected_value)) if actual_value == expected_value)
+            );
+        }
+    }
 }

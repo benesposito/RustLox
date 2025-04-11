@@ -1,6 +1,6 @@
 use super::{BinaryOperator, Expression, UnaryOperator, Value};
 use crate::ast::{ParseErrorKind, ParseResult};
-use crate::lexer::Token;
+use crate::lexer::{FixedToken, Token};
 
 use std::iter::Peekable;
 
@@ -12,12 +12,12 @@ fn logical_or(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult
     let mut expression = logical_and(tokens)?;
 
     loop {
-        let Some(token) = tokens.peek() else {
+        let Some(Token::FixedToken(token)) = tokens.peek() else {
             return Ok(expression);
         };
 
         let operator = match token {
-            Token::Or => BinaryOperator::Or,
+            FixedToken::Or => BinaryOperator::Or,
             _ => return Ok(expression),
         };
 
@@ -32,12 +32,12 @@ fn logical_and(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResul
     let mut expression = equality(tokens)?;
 
     loop {
-        let Some(token) = tokens.peek() else {
+        let Some(Token::FixedToken(token)) = tokens.peek() else {
             return Ok(expression);
         };
 
         let operator = match token {
-            Token::And => BinaryOperator::And,
+            FixedToken::And => BinaryOperator::And,
             _ => return Ok(expression),
         };
 
@@ -52,13 +52,13 @@ fn equality(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<E
     let mut expression = comparison(tokens)?;
 
     loop {
-        let Some(token) = tokens.peek() else {
+        let Some(Token::FixedToken(token)) = tokens.peek() else {
             return Ok(expression);
         };
 
         let operator = match token {
-            Token::EqualEqual => BinaryOperator::Equality,
-            Token::BangEqual => BinaryOperator::Inequality,
+            FixedToken::EqualEqual => BinaryOperator::Equality,
+            FixedToken::BangEqual => BinaryOperator::Inequality,
             _ => return Ok(expression),
         };
 
@@ -73,15 +73,15 @@ fn comparison(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult
     let mut expression = term(tokens)?;
 
     loop {
-        let Some(token) = tokens.peek() else {
+        let Some(Token::FixedToken(token)) = tokens.peek() else {
             return Ok(expression);
         };
 
         let operator = match token {
-            Token::Greater => BinaryOperator::GreaterThan,
-            Token::GreaterEqual => BinaryOperator::GreaterThanOrEqualTo,
-            Token::Less => BinaryOperator::LessThan,
-            Token::LessEqual => BinaryOperator::LessThanOrEqualTo,
+            FixedToken::Greater => BinaryOperator::GreaterThan,
+            FixedToken::GreaterEqual => BinaryOperator::GreaterThanOrEqualTo,
+            FixedToken::Less => BinaryOperator::LessThan,
+            FixedToken::LessEqual => BinaryOperator::LessThanOrEqualTo,
             _ => return Ok(expression),
         };
 
@@ -96,13 +96,13 @@ fn term(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expre
     let mut expression = factor(tokens)?;
 
     loop {
-        let Some(token) = tokens.peek() else {
+        let Some(Token::FixedToken(token)) = tokens.peek() else {
             return Ok(expression);
         };
 
         let operator = match token {
-            Token::Plus => BinaryOperator::Addition,
-            Token::Minus => BinaryOperator::Subtraction,
+            FixedToken::Plus => BinaryOperator::Addition,
+            FixedToken::Minus => BinaryOperator::Subtraction,
             _ => return Ok(expression),
         };
 
@@ -117,13 +117,13 @@ fn factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Exp
     let mut expression = unary(tokens)?;
 
     loop {
-        let Some(token) = tokens.peek() else {
+        let Some(Token::FixedToken(token)) = tokens.peek() else {
             return Ok(expression);
         };
 
         let operator = match token {
-            Token::Asterisk => BinaryOperator::Multiplication,
-            Token::ForwardSlash => BinaryOperator::Division,
+            FixedToken::Asterisk => BinaryOperator::Multiplication,
+            FixedToken::ForwardSlash => BinaryOperator::Division,
             _ => return Ok(expression),
         };
 
@@ -136,8 +136,8 @@ fn factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Exp
 
 fn unary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     let operator = match tokens.peek().expect("Expected unary or primary expression") {
-        Token::Minus => UnaryOperator::Negate,
-        Token::Bang => UnaryOperator::Not,
+        Token::FixedToken(FixedToken::Minus) => UnaryOperator::Negate,
+        Token::FixedToken(FixedToken::Bang) => UnaryOperator::Not,
         _ => return primary(tokens),
     };
 
@@ -147,12 +147,14 @@ fn unary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expr
 
 fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
     match tokens.next().expect("Expected primary expression") {
-        Token::LeftParenthesis => {
+        Token::FixedToken(FixedToken::LeftParenthesis) => {
             let expression = expression(tokens)?;
 
             match tokens.next() {
                 Some(token) => match token {
-                    Token::RightParenthesis => Ok(Expression::Grouping(Box::new(expression))),
+                    Token::FixedToken(FixedToken::RightParenthesis) => {
+                        Ok(Expression::Grouping(Box::new(expression)))
+                    }
                     _ => panic!("Expected right parenthesis, instead got {:?}", token),
                 },
                 None => Err(ParseErrorKind::UnmatchedParenthesis),
@@ -161,9 +163,9 @@ fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Ex
         Token::Identifier(name) => Ok(Expression::Variable(name)),
         Token::NumericLiteral(value) => Ok(Expression::Value(Value::Numeric(value))),
         Token::StringLiteral(value) => Ok(Expression::Value(Value::Str(value.clone()))),
-        Token::True => Ok(Expression::Value(Value::Boolean(true))),
-        Token::False => Ok(Expression::Value(Value::Boolean(false))),
-        Token::Nil => Ok(Expression::Value(Value::Nil)),
+        Token::FixedToken(FixedToken::True) => Ok(Expression::Value(Value::Boolean(true))),
+        Token::FixedToken(FixedToken::False) => Ok(Expression::Value(Value::Boolean(false))),
+        Token::FixedToken(FixedToken::Nil) => Ok(Expression::Value(Value::Nil)),
         _ => Err(ParseErrorKind::ExpectedPrimaryExpressionBefore),
     }
 }

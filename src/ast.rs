@@ -1,7 +1,7 @@
 pub mod expression;
 pub mod statement;
 
-use crate::lexer::Token;
+use crate::lexer::{FixedToken, Token};
 use statement::Statement;
 
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ impl Ast {
         tokens: &mut impl Iterator<Item = Token>,
     ) -> Option<Result<Statement, ParseErrorKind>> {
         let mut tokens = tokens
-            .filter(|token| !matches!(*token, Token::Newline))
+            .filter(|token| !matches!(*token, Token::FixedToken(FixedToken::Newline)))
             .peekable();
 
         if tokens.peek().is_some() {

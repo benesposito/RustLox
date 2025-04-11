@@ -2,7 +2,7 @@ use super::expression::Expression;
 use super::{ParseErrorKind, ParseResult};
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
-use crate::lexer::Token;
+use crate::lexer::{FixedToken, Token};
 
 use std::iter::Peekable;
 
@@ -40,11 +40,11 @@ impl Statement {
 
 fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Statement> {
     let statement = match tokens.peek().expect("Expected tokens") {
-        Token::Print => {
+        Token::FixedToken(FixedToken::Print) => {
             tokens.next();
             Statement::Print(Expression::parse(tokens)?)
         }
-        Token::Var => {
+        Token::FixedToken(FixedToken::Var) => {
             tokens.next();
 
             let variable_name = match tokens.next() {
@@ -53,7 +53,7 @@ fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<
             };
 
             match tokens.peek() {
-                Some(Token::Equal) => {
+                Some(Token::FixedToken(FixedToken::Equal)) => {
                     tokens.next();
                     Statement::VariableDefinition(variable_name, Expression::parse(tokens)?)
                 }
@@ -64,11 +64,11 @@ fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<
     };
 
     match tokens.next() {
-        Some(Token::Semicolon) => Ok(statement),
+        Some(Token::FixedToken(FixedToken::Semicolon)) => Ok(statement),
         _ => {
             loop {
                 match tokens.next() {
-                    Some(Token::Semicolon) | None => break,
+                    Some(Token::FixedToken(FixedToken::Semicolon)) | None => break,
                     _ => (),
                 };
             }
