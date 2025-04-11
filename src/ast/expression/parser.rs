@@ -160,9 +160,9 @@ fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Ex
                 None => Err(ParseErrorKind::UnmatchedParenthesis),
             }
         }
-        Token::Identifier(name) => Ok(Expression::Variable(name)),
-        Token::NumericLiteral(value) => Ok(Expression::Value(Value::Numeric(value))),
-        Token::StringLiteral(value) => Ok(Expression::Value(Value::Str(value.clone()))),
+        Token::Identifier(identifier) => Ok(Expression::Variable(identifier.name)),
+        Token::NumericLiteral(literal) => Ok(Expression::Value(Value::Numeric(literal.value))),
+        Token::StringLiteral(literal) => Ok(Expression::Value(Value::Str(literal.value.clone()))),
         Token::FixedToken(FixedToken::True) => Ok(Expression::Value(Value::Boolean(true))),
         Token::FixedToken(FixedToken::False) => Ok(Expression::Value(Value::Boolean(false))),
         Token::FixedToken(FixedToken::Nil) => Ok(Expression::Value(Value::Nil)),

@@ -47,7 +47,7 @@ fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<
         Token::FixedToken(FixedToken::Var) => {
             tokens.next();
 
-            let variable_name = match tokens.next() {
+            let identifier = match tokens.next() {
                 Some(Token::Identifier(identifier)) => identifier,
                 _ => return Err(ParseErrorKind::ExpectedIdentifier),
             };
@@ -55,9 +55,9 @@ fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<
             match tokens.peek() {
                 Some(Token::FixedToken(FixedToken::Equal)) => {
                     tokens.next();
-                    Statement::VariableDefinition(variable_name, Expression::parse(tokens)?)
+                    Statement::VariableDefinition(identifier.name, Expression::parse(tokens)?)
                 }
-                _ => Statement::VariableDeclaration(variable_name),
+                _ => Statement::VariableDeclaration(identifier.name),
             }
         }
         _ => Statement::Expression(Expression::parse(tokens)?),

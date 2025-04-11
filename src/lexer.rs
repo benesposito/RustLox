@@ -1,3 +1,9 @@
+trait Lex {
+    fn extract(input: &mut &str) -> Option<Self>
+    where
+        Self: Sized;
+}
+
 #[derive(Clone, Debug)]
 pub enum FixedToken {
     /* Symbols */
@@ -50,13 +56,27 @@ pub enum FixedToken {
     Newline,
 }
 
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
+#[derive(Debug)]
+pub struct Identifier {
+    pub name: String,
+}
+
+#[derive(Debug)]
+pub struct StringLiteral {
+    pub value: String,
+}
+
+#[derive(Debug)]
+pub struct NumericLiteral {
+    pub value: f64,
+}
+
+#[derive(Debug)]
 pub enum Token {
     FixedToken(FixedToken),
-    Identifier(String),
-    StringLiteral(String),
-    NumericLiteral(f64),
+    Identifier(Identifier),
+    StringLiteral(StringLiteral),
+    NumericLiteral(NumericLiteral),
 }
 
 /* TODO: measure relative frequencies of each token and order this
@@ -109,29 +129,12 @@ const FIXED_TOKEN_MAP: &[(&str, FixedToken)] = &[
     ("\n", FixedToken::Newline),
 ];
 
-impl Token {
+impl Lex for FixedToken {
     fn extract(input: &mut &str) -> Option<Self> {
-        if let Some(token) = Self::extract_fixed_token(input) {
-            Some(token)
-        } else if input
-            .chars()
-            .next()
-            .expect("Expression is unexpectedly empty")
-            .is_ascii_digit()
-        {
-            Self::extract_numeric_literal(input)
-        } else if input.starts_with("\"") {
-            Self::extract_string_literal(input)
-        } else {
-            Self::extract_identifier(input)
-        }
-    }
-
-    fn extract_fixed_token(input: &mut &str) -> Option<Self> {
         for (token_string, token) in FIXED_TOKEN_MAP {
             if let Some(rest_of_input) = input.strip_prefix(token_string) {
                 *input = rest_of_input;
-                return Some(Token::FixedToken(token.clone()));
+                return Some(token.clone());
             }
         }
 
@@ -147,7 +150,7 @@ impl Token {
                 Some(c) if !c.is_numeric() => {
                     let rest_of_input = input.strip_prefix('-').unwrap();
                     *input = rest_of_input;
-                    return Some(Token::FixedToken(FixedToken::Minus));
+                    return Some(FixedToken::Minus);
                 }
                 _ => (),
             }
@@ -155,8 +158,16 @@ impl Token {
 
         None
     }
+}
 
-    fn extract_numeric_literal(input: &mut &str) -> Option<Self> {
+impl NumericLiteral {
+    pub fn new(value: f64) -> NumericLiteral {
+        NumericLiteral { value }
+    }
+}
+
+impl Lex for NumericLiteral {
+    fn extract(input: &mut &str) -> Option<Self> {
         let end = (|| {
             let mut chars = input.chars().peekable();
             let has_sign = matches!(chars.peek(), Some('-'));
@@ -177,33 +188,60 @@ impl Token {
         let token = &input[..end];
         *input = &input[end..];
 
-        Some(Self::NumericLiteral(
+        Some(NumericLiteral::new(
             token.parse().expect("Failed to parse NumericLiteral"),
         ))
     }
+}
 
-    fn extract_string_literal(input: &mut &str) -> Option<Self> {
-        for (i, c) in input.chars().enumerate().skip(1) {
-            if c == '"' {
-                let token = &input[1..i];
-                *input = &input[i + 1..];
-                return Some(Self::StringLiteral(String::from(token)));
-            }
-        }
-
-        None
-    }
-
-    fn extract_identifier(input: &mut &str) -> Option<Self> {
+impl Lex for Identifier {
+    fn extract(input: &mut &str) -> Option<Self> {
         for (i, c) in input.chars().enumerate() {
             if !c.is_alphanumeric() {
                 let token = &input[..i];
                 *input = &input[i..];
-                return Some(Self::Identifier(String::from(token)));
+                return Some(Identifier {
+                    name: String::from(token),
+                });
             }
         }
 
         None
+    }
+}
+
+impl Lex for StringLiteral {
+    fn extract(input: &mut &str) -> Option<Self> {
+        for (i, c) in input.chars().enumerate().skip(1) {
+            if c == '"' {
+                let token = &input[1..i];
+                *input = &input[i + 1..];
+                return Some(StringLiteral {
+                    value: String::from(token),
+                });
+            }
+        }
+
+        None
+    }
+}
+
+impl Token {
+    fn extract(input: &mut &str) -> Option<Self> {
+        if let Some(token) = FixedToken::extract(input) {
+            Some(Token::FixedToken(token))
+        } else if input
+            .chars()
+            .next()
+            .expect("Expression is unexpectedly empty")
+            .is_ascii_digit()
+        {
+            Some(Token::NumericLiteral(NumericLiteral::extract(input)?))
+        } else if input.starts_with("\"") {
+            Some(Token::StringLiteral(StringLiteral::extract(input)?))
+        } else {
+            Some(Token::Identifier(Identifier::extract(input)?))
+        }
     }
 }
 
@@ -307,33 +345,33 @@ mod tests {
     use rand::prelude::Distribution;
     use rand::prelude::IndexedRandom;
 
-    fn generate_numeric_literal(rng: &mut impl rand::Rng) -> (String, Token) {
+    fn generate_numeric_literal(rng: &mut impl rand::Rng) -> (String, NumericLiteral) {
         let range = rand_distr::Frechet::new(0.0, 2.0, 0.1).unwrap();
         let value = range.sample(rng) * (*[-1.0, 1.0].choose(rng).unwrap());
 
-        println!("{:?}", (value.to_string(), Token::NumericLiteral(value)));
-        (value.to_string(), Token::NumericLiteral(value))
+        println!("{:?}", (value.to_string(), NumericLiteral { value }));
+        (value.to_string(), NumericLiteral { value })
     }
 
     #[test]
-    fn test_extract_fixed_token() {
+    fn test_fixed_token() {
         for &(mut token_string, ref expected_token) in FIXED_TOKEN_MAP {
             assert!(matches!(
-                Token::extract_fixed_token(&mut token_string),
-                Some(Token::FixedToken(actual_token)) if std::mem::discriminant(&actual_token) == std::mem::discriminant(&expected_token)
+                FixedToken::extract(&mut token_string),
+                Some(actual_token) if std::mem::discriminant(&actual_token) == std::mem::discriminant(&expected_token)
             ));
         }
     }
 
     #[test]
-    fn test_extract_numeric_literal() {
+    fn test_numeric_literal() {
         let mut rng = rand::rng();
 
         let mut should = std::collections::HashMap::from([
-            (String::from("0"), Token::NumericLiteral(0f64)),
-            (String::from("-0"), Token::NumericLiteral(0f64)),
-            (String::from("123.456"), Token::NumericLiteral(123.456)),
-            (String::from("-123.456"), Token::NumericLiteral(-123.456)),
+            (String::from("0"), NumericLiteral::new(0f64)),
+            (String::from("-0"), NumericLiteral::new(0f64)),
+            (String::from("123.456"), NumericLiteral::new(123.456)),
+            (String::from("-123.456"), NumericLiteral::new(-123.456)),
         ]);
 
         for _ in 0..10 {
@@ -341,8 +379,8 @@ mod tests {
         }
 
         let should_not = std::collections::HashMap::from([
-            (String::from("0"), Token::NumericLiteral(0.5f64)),
-            (String::from("1234"), Token::NumericLiteral(1234.1f64)),
+            (String::from("0"), NumericLiteral::new(0.5f64)),
+            (String::from("1234"), NumericLiteral::new(1234.1f64)),
         ]);
 
         let should = should.into_iter().map(|pair| (true, pair.0, pair.1));
@@ -352,7 +390,7 @@ mod tests {
         for record in records {
             assert!(
                 record.0
-                    == matches!((Token::extract_numeric_literal(&mut record.1.as_str()), record.2), (Some(Token::NumericLiteral(actual_value)), Token::NumericLiteral(expected_value)) if actual_value == expected_value)
+                    == matches!(NumericLiteral::extract(&mut record.1.as_str()), Some(actual) if actual.value == record.2.value)
             );
         }
     }
