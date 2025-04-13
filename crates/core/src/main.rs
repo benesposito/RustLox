@@ -1,7 +1,4 @@
-mod ast;
-mod environment;
-mod evaluator;
-mod lexer;
+use lib::*;
 
 const FILENAME: &str = "statements.lox";
 
