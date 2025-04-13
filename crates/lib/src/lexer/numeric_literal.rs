@@ -1,6 +1,6 @@
-use super::Lex;
+use super::{Lex, LexImpl};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NumericLiteral {
     pub value: f64,
 }
@@ -11,8 +11,8 @@ impl NumericLiteral {
     }
 }
 
-impl Lex for NumericLiteral {
-    fn extract(input: &mut &str) -> Option<Self> {
+impl LexImpl for NumericLiteral {
+    fn extract_impl(input: &mut &str) -> Option<Self> {
         let end = (|| {
             let mut chars = input.chars().peekable();
             let has_sign = matches!(chars.peek(), Some('-'));
@@ -38,6 +38,8 @@ impl Lex for NumericLiteral {
         ))
     }
 }
+
+impl Lex for NumericLiteral {}
 
 #[cfg(test)]
 mod tests {

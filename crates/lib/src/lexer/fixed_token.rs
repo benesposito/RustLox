@@ -1,4 +1,4 @@
-use super::Lex;
+use super::{Lex, LexImpl};
 
 #[derive(Clone, Debug)]
 pub enum FixedToken {
@@ -102,8 +102,8 @@ const FIXED_TOKEN_MAP: &[(&str, FixedToken)] = &[
     ("\n", FixedToken::Newline),
 ];
 
-impl Lex for FixedToken {
-    fn extract(input: &mut &str) -> Option<Self> {
+impl LexImpl for FixedToken {
+    fn extract_impl(input: &mut &str) -> Option<Self> {
         for (token_string, token) in FIXED_TOKEN_MAP {
             if let Some(rest_of_input) = input.strip_prefix(token_string) {
                 *input = rest_of_input;
@@ -132,6 +132,8 @@ impl Lex for FixedToken {
         None
     }
 }
+
+impl Lex for FixedToken {}
 
 #[cfg(test)]
 mod tests {

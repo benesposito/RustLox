@@ -1,12 +1,12 @@
-use super::Lex;
+use super::{Lex, LexImpl};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Identifier {
     pub name: String,
 }
 
-impl Lex for Identifier {
-    fn extract(input: &mut &str) -> Option<Self> {
+impl LexImpl for Identifier {
+    fn extract_impl(input: &mut &str) -> Option<Self> {
         for (i, c) in input.chars().enumerate() {
             if !c.is_alphanumeric() {
                 let token = &input[..i];
@@ -20,3 +20,5 @@ impl Lex for Identifier {
         None
     }
 }
+
+impl Lex for Identifier {}
