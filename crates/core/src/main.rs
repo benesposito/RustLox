@@ -17,7 +17,7 @@ fn main() {
                 println!("{:?}, {}", context.kind, context.column);
 
                 println!("{}", context.line);
-                println!("{}^", String::from(" ").repeat(context.column - 1));
+                println!("{}^", String::from(" ").repeat(context.column));
             }
 
             return;

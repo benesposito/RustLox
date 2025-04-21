@@ -43,7 +43,7 @@ pub trait Lex: LexImpl {
         Self: Sized,
     {
         let token = Self::extract_impl(input);
-        *input = input.trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
+        *input = input.trim_start_matches(is_skippable_whitespace);
         token
     }
 }
@@ -60,12 +60,13 @@ impl Token {
     fn extract(input: &mut &str) -> Option<Self> {
         if let Some(token) = FixedToken::extract(input) {
             Some(Token::FixedToken(token))
-        } else if input
-            .chars()
-            .next()
-            .expect("Expression is unexpectedly empty")
-            .is_ascii_digit()
-        {
+        } else if {
+            let c = input
+                .chars()
+                .next()
+                .expect("Expression is unexpectedly empty");
+            c.is_ascii_digit() || c == '-' || c == '+'
+        } {
             Some(Token::NumericLiteral(NumericLiteral::extract(input)?))
         } else if input.starts_with("\"") {
             Some(Token::StringLiteral(StringLiteral::extract(input)?))
@@ -125,10 +126,8 @@ pub fn get_error_contexts<'a>(
     let mut column: usize = 0;
 
     for error in errors {
-        for _ in 0..error.token_index {
-            while input.chars().next().unwrap().is_whitespace()
-                && input.chars().next().unwrap() != '\n'
-            {
+        for _ in 0..(error.token_index - 1) {
+            while is_skippable_whitespace(input.chars().next().unwrap()) {
                 input = &input[1..];
                 column += 1;
             }
@@ -158,11 +157,25 @@ pub fn get_error_contexts<'a>(
         });
     }
 
-    contexts.extend(partials.into_iter().map(|partial| ErrorContext {
-        kind: partial.kind.clone(),
-        line: &start_of_line[0..column],
-        column: partial.column,
-    }));
+    if !partials.is_empty() {
+        loop {
+            let original_input_len = input.len();
+            match Token::extract(&mut input).expect("Tokens have already been validated") {
+                Token::FixedToken(FixedToken::Newline) => break,
+                _ => column += original_input_len - input.len(),
+            }
+        }
+
+        contexts.extend(partials.into_iter().map(|partial| ErrorContext {
+            kind: partial.kind.clone(),
+            line: &start_of_line[0..column],
+            column: partial.column,
+        }));
+    }
 
     contexts
+}
+
+fn is_skippable_whitespace(c: char) -> bool {
+    c.is_whitespace() && c != '\n'
 }
