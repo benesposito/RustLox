@@ -39,7 +39,15 @@ impl LexImpl for NumericLiteral {
     }
 }
 
-impl Lex for NumericLiteral {}
+impl Lex for NumericLiteral {
+    fn is_kind(input: &str) -> bool {
+        let c = input
+            .chars()
+            .next()
+            .expect("Expression is unexpectedly empty");
+        c.is_ascii_digit() || c == '-' || c == '+'
+    }
+}
 
 #[cfg(test)]
 mod tests {

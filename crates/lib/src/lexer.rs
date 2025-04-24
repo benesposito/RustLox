@@ -46,6 +46,8 @@ pub trait Lex: LexImpl {
         *input = input.trim_start_matches(is_skippable_whitespace);
         token
     }
+
+    fn is_kind(input: &str) -> bool;
 }
 
 #[derive(Debug)]
@@ -60,18 +62,14 @@ impl Token {
     fn extract(input: &mut &str) -> Option<Self> {
         if let Some(token) = FixedToken::extract(input) {
             Some(Token::FixedToken(token))
-        } else if {
-            let c = input
-                .chars()
-                .next()
-                .expect("Expression is unexpectedly empty");
-            c.is_ascii_digit() || c == '-' || c == '+'
-        } {
+        } else if NumericLiteral::is_kind(input) {
             Some(Token::NumericLiteral(NumericLiteral::extract(input)?))
-        } else if input.starts_with("\"") {
+        } else if StringLiteral::is_kind(input) {
             Some(Token::StringLiteral(StringLiteral::extract(input)?))
-        } else {
+        } else if Identifier::is_kind(input) {
             Some(Token::Identifier(Identifier::extract(input)?))
+        } else {
+            None
         }
     }
 }

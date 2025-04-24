@@ -133,7 +133,12 @@ impl LexImpl for FixedToken {
     }
 }
 
-impl Lex for FixedToken {}
+impl Lex for FixedToken {
+    fn is_kind(_: &str) -> bool {
+        todo!("Find way of implementing in a way that caches the result. For
+        now, use 'if let Some(token) = FixedToken::extract(input)'");
+    }
+}
 
 #[cfg(test)]
 mod tests {

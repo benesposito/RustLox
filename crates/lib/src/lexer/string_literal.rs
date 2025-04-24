@@ -21,4 +21,8 @@ impl LexImpl for StringLiteral {
     }
 }
 
-impl Lex for StringLiteral  {}
+impl Lex for StringLiteral {
+    fn is_kind(input: &str) -> bool {
+        input.starts_with("\"")
+    }
+}

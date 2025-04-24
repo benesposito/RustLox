@@ -21,4 +21,12 @@ impl LexImpl for Identifier {
     }
 }
 
-impl Lex for Identifier {}
+impl Lex for Identifier {
+    fn is_kind(input: &str) -> bool {
+        input
+            .chars()
+            .next()
+            .expect("Expression is unexpectedly empty")
+            .is_ascii_alphabetic()
+    }
+}
