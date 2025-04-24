@@ -1,7 +1,7 @@
 pub mod expression;
 pub mod statement;
 
-use crate::lexer::{FixedToken, Token};
+use crate::lexer::{FixedToken, Token, error_context::RecordedError};
 use statement::Statement;
 
 #[derive(Debug, Clone)]
@@ -14,14 +14,8 @@ pub enum ParseErrorKind {
     ExpectedIdentifier,
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct ParseError {
-    pub kind: ParseErrorKind,
-    pub token_index: usize,
-}
-
 type ParseResult<T> = Result<T, ParseErrorKind>;
+pub type ParseError = RecordedError<ParseErrorKind>;
 
 pub struct Ast {
     pub statements: Vec<Statement>,
@@ -31,25 +25,23 @@ impl Ast {
     pub fn parse(
         mut tokens: impl ExactSizeIterator<Item = Token>,
     ) -> Result<Self, Vec<ParseError>> {
-        let orig_len = tokens.len();
+        use crate::lexer::error_context::ErrorRecorder;
+
         let mut statements: Vec<Statement> = Vec::new();
-        let mut errors: Vec<ParseError> = Vec::new();
+        let mut error_recorder = ErrorRecorder::<ParseErrorKind>::new(&tokens);
 
         loop {
             match Self::parse_enter(&mut tokens) {
                 Some(Ok(statement)) => statements.push(statement),
-                Some(Err(kind)) => errors.push(ParseError {
-                    kind,
-                    token_index: orig_len - tokens.len(),
-                }),
+                Some(Err(kind)) => error_recorder.record(&tokens, kind),
                 None => break,
             }
         }
 
-        if errors.is_empty() {
+        if error_recorder.errors.is_empty() {
             Ok(Ast { statements })
         } else {
-            Err(errors)
+            Err(error_recorder.errors)
         }
     }
 

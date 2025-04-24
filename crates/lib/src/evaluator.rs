@@ -7,20 +7,18 @@ pub enum RuntimeError {
 }
 
 pub struct Evaluator {
-    ast: Ast,
     pub environment: Environment,
 }
 
 impl Evaluator {
-    pub fn new(ast: Ast) -> Self {
+    pub fn new() -> Self {
         Evaluator {
-            ast,
             environment: Environment::new(),
         }
     }
 
-    pub fn evaluate(&mut self) -> Result<(), RuntimeError> {
-        for statement in self.ast.statements.iter() {
+    pub fn evaluate(&mut self, ast: &Ast) -> Result<(), RuntimeError> {
+        for statement in ast.statements.iter() {
             statement.evaluate(&mut self.environment)?;
         }
 

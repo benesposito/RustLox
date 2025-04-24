@@ -93,87 +93,135 @@ pub fn tokenize(mut input: &str) -> Option<Vec<Token>> {
     Some(tokens)
 }
 
-pub struct ErrorContext<'a> {
-    pub kind: crate::ast::ParseErrorKind,
-    pub line: &'a str,
-    pub column: usize,
-}
+pub mod error_context {
+    use super::*;
 
-#[derive(Debug)]
-struct PartialErrorContext {
-    kind: crate::ast::ParseErrorKind,
-    column: usize,
-}
+    pub struct RecordedError<ErrorKind> {
+        pub kind: ErrorKind,
+        pub token_index: usize,
+    }
 
-pub fn get_error_contexts<'a>(
-    mut input: &'a str,
-    errors: &Vec<crate::ast::ParseError>,
-) -> Vec<ErrorContext<'a>> {
-    let mut contexts: Vec<ErrorContext> = Vec::with_capacity(errors.len());
-    let mut partials: Vec<PartialErrorContext> = Vec::new();
+    pub struct ErrorRecorder<ErrorKind> {
+        //tokens: &'a TokenIterator,
+        original_length: usize,
+        pub errors: Vec<RecordedError<ErrorKind>>,
+    }
 
-    let errors = errors.iter().scan(0, |prev_token_index, error| {
-        let new_error = crate::ast::ParseError {
-            kind: error.kind.clone(),
-            token_index: error.token_index - *prev_token_index,
-        };
-
-        *prev_token_index = error.token_index;
-        Some(new_error)
-    });
-
-    let mut start_of_line = input;
-    let mut column: usize = 0;
-
-    for error in errors {
-        for _ in 0..(error.token_index - 1) {
-            while is_skippable_whitespace(input.chars().next().unwrap()) {
-                input = &input[1..];
-                column += 1;
-            }
-
-            let original_input_len = input.len();
-            match Token::extract(&mut input).expect("Tokens have already been validated") {
-                Token::FixedToken(FixedToken::Newline) => {
-                    contexts.extend(partials.into_iter().map(|partial| ErrorContext {
-                        kind: partial.kind.clone(),
-                        line: &start_of_line[0..column],
-                        column: partial.column,
-                    }));
-
-                    partials = Vec::new();
-                    start_of_line = input;
-                    column = 0;
-                }
-                _ => {
-                    column += original_input_len - input.len();
-                }
+    impl<ErrorKind: Clone> ErrorRecorder<ErrorKind> {
+        pub fn new(tokens: &impl ExactSizeIterator) -> Self {
+            /* take in iterator ref, come up with new name */
+            Self {
+                //tokens,
+                original_length: tokens.len(),
+                errors: Vec::new(),
             }
         }
 
-        partials.push(PartialErrorContext {
-            kind: error.kind.clone(),
-            column,
+        pub fn record(&mut self, tokens: &impl ExactSizeIterator, kind: ErrorKind) {
+            self.errors.push(RecordedError {
+                kind,
+                token_index: self.original_length - tokens.len(),
+            });
+        }
+
+        pub fn error_contexts<'a>(&self, input: &'a str) -> Vec<ErrorContext<'a, ErrorKind>> {
+            get_error_contexts(input, &self.errors)
+        }
+    }
+
+    #[derive(Debug)]
+    struct PartialErrorContext<ErrorKind> {
+        kind: ErrorKind,
+        column: usize,
+    }
+
+    pub struct ErrorContext<'a, ErrorKind> {
+        partial: PartialErrorContext<ErrorKind>,
+        line: &'a str,
+    }
+
+    impl<'a, ErrorKind: Clone> ErrorContext<'a, ErrorKind> {
+        pub fn kind(&self) -> ErrorKind {
+            self.partial.kind.clone()
+        }
+
+        pub fn column(&self) -> usize {
+            self.partial.column
+        }
+
+        pub fn line(&self) -> &'a str {
+            self.line
+        }
+    }
+
+    pub fn get_error_contexts<'a, ErrorKind: Clone>(
+        mut input: &'a str,
+        errors: &Vec<RecordedError<ErrorKind>>,
+    ) -> Vec<ErrorContext<'a, ErrorKind>> {
+        let mut contexts: Vec<ErrorContext<ErrorKind>> = Vec::with_capacity(errors.len());
+        let mut partials: Vec<PartialErrorContext<ErrorKind>> = Vec::new();
+
+        let errors = errors.iter().scan(0, |prev_token_index, error| {
+            let new_error = RecordedError::<ErrorKind> {
+                kind: error.kind.clone(),
+                token_index: error.token_index - *prev_token_index,
+            };
+
+            *prev_token_index = error.token_index;
+            Some(new_error)
         });
-    }
 
-    if !partials.is_empty() {
-        loop {
-            let original_input_len = input.len();
-            match Token::extract(&mut input).expect("Tokens have already been validated") {
-                Token::FixedToken(FixedToken::Newline) => break,
-                _ => column += original_input_len - input.len(),
+        let mut start_of_line = input;
+        let mut column: usize = 0;
+
+        for error in errors {
+            for _ in 0..(error.token_index - 1) {
+                while is_skippable_whitespace(input.chars().next().unwrap()) {
+                    input = &input[1..];
+                    column += 1;
+                }
+
+                let original_input_len = input.len();
+                match Token::extract(&mut input).expect("Tokens have already been validated") {
+                    Token::FixedToken(FixedToken::Newline) => {
+                        contexts.extend(partials.into_iter().map(|partial| ErrorContext {
+                            partial: partial,
+                            line: &start_of_line[0..column],
+                        }));
+
+                        partials = Vec::new();
+                        start_of_line = input;
+                        column = 0;
+                    }
+                    _ => {
+                        column += original_input_len - input.len();
+                    }
+                }
             }
+
+            partials.push(PartialErrorContext {
+                kind: error.kind.clone(),
+                column,
+            });
         }
 
-        contexts.extend(partials.into_iter().map(|partial| ErrorContext {
-            kind: partial.kind.clone(),
-            line: &start_of_line[0..column],
-            column: partial.column,
-        }));
-    }
+        if !partials.is_empty() {
+            loop {
+                let original_input_len = input.len();
+                match Token::extract(&mut input).expect("Tokens have already been validated") {
+                    Token::FixedToken(FixedToken::Newline) => break,
+                    _ => column += original_input_len - input.len(),
+                }
+            }
 
-    contexts
+            contexts.extend(partials.into_iter().map(|partial| ErrorContext {
+                partial: partial,
+                line: &start_of_line[0..column],
+            }));
+        }
+
+        contexts
+    }
 }
 
 fn is_skippable_whitespace(c: char) -> bool {
