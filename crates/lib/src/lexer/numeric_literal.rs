@@ -1,4 +1,4 @@
-use super::{Lex, LexImpl};
+use super::{LookaheadLex, LexResult, Token};
 
 #[derive(Debug, PartialEq)]
 pub struct NumericLiteral {
@@ -11,8 +11,16 @@ impl NumericLiteral {
     }
 }
 
-impl LexImpl for NumericLiteral {
-    fn extract_impl(input: &mut &str) -> Option<Self> {
+impl LookaheadLex for NumericLiteral {
+    fn is_kind(input: &str) -> bool {
+        let c = input
+            .chars()
+            .next()
+            .expect("Expression is unexpectedly empty");
+        c.is_ascii_digit() || c == '-' || c == '+'
+    }
+
+    fn extract(input: &mut &str) -> LexResult<Self> {
         let end = (|| {
             let mut chars = input.chars().peekable();
             let has_sign = matches!(chars.peek(), Some('-'));
@@ -33,19 +41,15 @@ impl LexImpl for NumericLiteral {
         let token = &input[..end];
         *input = &input[end..];
 
-        Some(NumericLiteral::new(
+        Ok(NumericLiteral::new(
             token.parse().expect("Failed to parse NumericLiteral"),
         ))
     }
 }
 
-impl Lex for NumericLiteral {
-    fn is_kind(input: &str) -> bool {
-        let c = input
-            .chars()
-            .next()
-            .expect("Expression is unexpectedly empty");
-        c.is_ascii_digit() || c == '-' || c == '+'
+impl From<NumericLiteral> for Token {
+    fn from(value: NumericLiteral) -> Self {
+        Token::NumericLiteral(value)
     }
 }
 

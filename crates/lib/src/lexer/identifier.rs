@@ -1,32 +1,40 @@
-use super::{Lex, LexImpl};
+use super::{LookaheadLex, LexResult, Token};
 
 #[derive(Debug, PartialEq)]
 pub struct Identifier {
     pub name: String,
 }
 
-impl LexImpl for Identifier {
-    fn extract_impl(input: &mut &str) -> Option<Self> {
-        for (i, c) in input.chars().enumerate() {
-            if !c.is_alphanumeric() {
-                let token = &input[..i];
-                *input = &input[i..];
-                return Some(Identifier {
-                    name: String::from(token),
-                });
-            }
-        }
-
-        None
-    }
-}
-
-impl Lex for Identifier {
+impl LookaheadLex for Identifier {
     fn is_kind(input: &str) -> bool {
         input
             .chars()
             .next()
             .expect("Expression is unexpectedly empty")
             .is_ascii_alphabetic()
+    }
+
+    fn extract(input: &mut &str) -> LexResult<Self> {
+        for (i, c) in input.chars().enumerate() {
+            if !c.is_alphanumeric() {
+                let token = &input[..i];
+                *input = &input[i..];
+                return Ok(Identifier {
+                    name: String::from(token),
+                });
+            }
+        }
+
+        let token = input.clone();
+        *input = "";
+        return Ok(Identifier {
+            name: String::from(token),
+        });
+    }
+}
+
+impl From<Identifier> for Token {
+    fn from(value: Identifier) -> Self {
+        Token::Identifier(value)
     }
 }

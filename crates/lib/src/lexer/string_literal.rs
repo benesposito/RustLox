@@ -1,28 +1,32 @@
-use super::{Lex, LexImpl};
+use super::{LookaheadLex, Token, LexError, LexResult};
 
 #[derive(Debug)]
 pub struct StringLiteral {
     pub value: String,
 }
 
-impl LexImpl for StringLiteral {
-    fn extract_impl(input: &mut &str) -> Option<Self> {
+impl LookaheadLex for StringLiteral {
+    fn is_kind(input: &str) -> bool {
+        input.starts_with("\"")
+    }
+
+    fn extract(input: &mut &str) -> LexResult<Self> {
         for (i, c) in input.chars().enumerate().skip(1) {
             if c == '"' {
                 let token = &input[1..i];
                 *input = &input[i + 1..];
-                return Some(StringLiteral {
+                return Ok(StringLiteral {
                     value: String::from(token),
                 });
             }
         }
 
-        None
+        Err(LexError::UnclosedString)
     }
 }
 
-impl Lex for StringLiteral {
-    fn is_kind(input: &str) -> bool {
-        input.starts_with("\"")
+impl From<StringLiteral> for Token {
+    fn from(value: StringLiteral) -> Self {
+        Token::StringLiteral(value)
     }
 }

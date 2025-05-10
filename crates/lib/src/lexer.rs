@@ -8,14 +8,18 @@ pub use identifier::Identifier;
 pub use numeric_literal::NumericLiteral;
 pub use string_literal::StringLiteral;
 
-trait LexImpl {
-    fn extract_impl(input: &mut &str) -> Option<Self>
-    where
-        Self: Sized;
+#[derive(Debug)]
+enum LexError {
+    NoKind,
+    NumericContainsAlpha,
+    UnclosedString,
 }
 
-#[allow(private_bounds)]
-pub trait Lex: LexImpl {
+type LexResult<T> = std::result::Result<T, LexError>;
+
+pub trait LookaheadLex {
+    fn is_kind(input: &str) -> bool;
+
     /// Consume and return a token from a string slice.
     ///
     /// # Examples
@@ -38,16 +42,9 @@ pub trait Lex: LexImpl {
     /// let token = FixedToken::extract(&mut code).unwrap();
     /// assert!(matches!(token, FixedToken::Semicolon));
     /// ```
-    fn extract(input: &mut &str) -> Option<Self>
+    fn extract(input: &mut &str) -> LexResult<Self>
     where
-        Self: Sized,
-    {
-        let token = Self::extract_impl(input);
-        *input = input.trim_start_matches(is_skippable_whitespace);
-        token
-    }
-
-    fn is_kind(input: &str) -> bool;
+        Self: Sized;
 }
 
 #[derive(Debug)]
@@ -56,39 +53,60 @@ pub enum Token {
     Identifier(Identifier),
     StringLiteral(StringLiteral),
     NumericLiteral(NumericLiteral),
+    Error(LexError),
 }
 
 impl Token {
-    fn extract(input: &mut &str) -> Option<Self> {
+    fn extract(input: &mut &str) -> Self {
+        *input = input.trim_start_matches(is_skippable_whitespace);
+
         if let Some(token) = FixedToken::extract(input) {
-            Some(Token::FixedToken(token))
+            Token::FixedToken(token)
         } else if NumericLiteral::is_kind(input) {
-            Some(Token::NumericLiteral(NumericLiteral::extract(input)?))
+            Token::from(NumericLiteral::extract(input))
         } else if StringLiteral::is_kind(input) {
-            Some(Token::StringLiteral(StringLiteral::extract(input)?))
+            Token::from(StringLiteral::extract(input))
         } else if Identifier::is_kind(input) {
-            Some(Token::Identifier(Identifier::extract(input)?))
+            Token::from(Identifier::extract(input))
         } else {
-            None
+            /* synchronize on space */
+            let new_input = input.trim_start_matches(is_skippable_whitespace);
+            let token = &input[..new_input.len()];
+            *input = new_input;
+            //Ok(Token::Error(LexError::NoKind, String::from(input[..new_input.len()])))
+            Token::Error(LexError::NoKind)
         }
     }
 }
 
-pub fn tokenize(mut input: &str) -> Option<Vec<Token>> {
+impl<T: LookaheadLex> From<LexResult<T>> for Token
+where
+    Token: From<T>,
+{
+    fn from(maybe_value: LexResult<T>) -> Self {
+        match maybe_value {
+            Ok(value) => Token::from(value),
+            Err(e) => Token::Error(e),
+        }
+    }
+}
+
+pub fn tokenize(mut input: &str) -> Result<Vec<Token>, Vec<Token>> {
     let mut tokens: Vec<Token> = Vec::new();
+    let mut has_error = false;
 
     input = input.trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
 
     while !input.is_empty() {
-        match Token::extract(&mut input) {
-            Some(token) => {
-                tokens.push(token);
-            }
-            None => return None,
-        }
+        let token = Token::extract(&mut input);
+        has_error &= matches!(token, Token::Error(_));
+        tokens.push(token);
     }
 
-    Some(tokens)
+    match has_error {
+        false => Ok(tokens),
+        true => Err(tokens),
+    }
 }
 
 pub mod error_context {
@@ -180,7 +198,7 @@ pub mod error_context {
                 }
 
                 let original_input_len = input.len();
-                match Token::extract(&mut input).expect("Tokens have already been validated") {
+                match Token::extract(&mut input) {
                     Token::FixedToken(FixedToken::Newline) => {
                         contexts.extend(partials.into_iter().map(|partial| ErrorContext {
                             partial: partial,
@@ -206,7 +224,7 @@ pub mod error_context {
         if !partials.is_empty() {
             loop {
                 let original_input_len = input.len();
-                match Token::extract(&mut input).expect("Tokens have already been validated") {
+                match Token::extract(&mut input) {
                     Token::FixedToken(FixedToken::Newline) => break,
                     _ => column += original_input_len - input.len(),
                 }
