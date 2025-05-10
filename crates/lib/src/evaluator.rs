@@ -4,6 +4,8 @@ use crate::environment::Environment;
 #[derive(Debug)]
 pub enum RuntimeError {
     VariableDoesNotExist,
+    NotCallable,
+    WrongNumberOfArguments,
 }
 
 pub struct Evaluator {

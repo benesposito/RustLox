@@ -166,5 +166,21 @@ pub fn evaluate(
                 }
             }
         },
+        Expression::FunctionCall(callable, arguments) => {
+            let Value::Callable(callable) = callable.evaluate(environment)? else {
+                return Err(RuntimeError::NotCallable);
+            };
+
+            if callable.arity() != arguments.len() {
+                return Err(RuntimeError::WrongNumberOfArguments);
+            }
+
+            let arguments = arguments
+                .into_iter()
+                .map(|arg| arg.evaluate(environment))
+                .collect::<Result<_, _>>()?;
+
+            Ok(callable.call(&arguments))
+        }
     }
 }

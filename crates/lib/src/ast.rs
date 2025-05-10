@@ -7,6 +7,7 @@ use statement::Statement;
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ParseErrorKind {
+    UnexpectedToken,
     UnmatchedParenthesis,
     ExpectedPrimaryExpressionBefore,
     ExpectedEndOfExpression,

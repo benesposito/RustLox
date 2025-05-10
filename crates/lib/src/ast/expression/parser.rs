@@ -138,11 +138,40 @@ fn unary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expr
     let operator = match tokens.peek().expect("Expected unary or primary expression") {
         Token::FixedToken(FixedToken::Minus) => UnaryOperator::Negate,
         Token::FixedToken(FixedToken::Bang) => UnaryOperator::Not,
-        _ => return primary(tokens),
+        _ => return call(tokens),
     };
 
     tokens.next();
     Ok(Expression::Unary(operator, Box::new(unary(tokens)?)))
+}
+
+fn call(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {
+    let callable = primary(tokens)?;
+
+    let Some(Token::FixedToken(FixedToken::LeftParenthesis)) = tokens.peek() else {
+        return Ok(callable);
+    };
+
+    tokens.next();
+
+    let mut arguments: Vec<Expression> = Vec::new();
+
+    if let Some(Token::FixedToken(FixedToken::RightParenthesis)) = tokens.peek() {
+        tokens.next();
+        return Ok(Expression::FunctionCall(Box::new(callable), arguments));
+    };
+
+    loop {
+        arguments.push(expression(tokens)?);
+
+        match tokens.next() {
+            Some(Token::FixedToken(FixedToken::Comma)) => (),
+            Some(Token::FixedToken(FixedToken::RightParenthesis)) => break,
+            _ => return Err(ParseErrorKind::UnexpectedToken),
+        }
+    }
+
+    Ok(Expression::FunctionCall(Box::new(callable), arguments))
 }
 
 fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Expression> {

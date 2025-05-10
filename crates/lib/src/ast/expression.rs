@@ -12,6 +12,7 @@ pub enum Expression {
     Variable(String),
     Unary(UnaryOperator, Box<Expression>),
     Binary(Box<Expression>, BinaryOperator, Box<Expression>),
+    FunctionCall(Box<Expression>, Vec<Expression>),
 }
 
 impl Expression {
@@ -48,10 +49,31 @@ pub enum UnaryOperator {
 }
 
 #[derive(Clone, Debug)]
+pub struct Callable {
+    arity: usize,
+    function: fn(&Vec<Value>) -> Value,
+}
+
+impl Callable {
+    pub fn new(arity: usize, function: fn(&Vec<Value>) -> Value) -> Self {
+        Callable { arity, function }
+    }
+
+    pub fn arity(&self) -> usize {
+        self.arity
+    }
+
+    pub fn call(&self, arguments: &Vec<Value>) -> Value {
+        (self.function)(arguments)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum Value {
     Numeric(f64),
     Str(String),
     Boolean(bool),
+    Callable(Callable),
     Nil,
 }
 
@@ -69,6 +91,17 @@ impl fmt::Display for Expression {
                 write!(f, "({} {} {})", operator, left, right)
             }
             Expression::Grouping(expression) => write!(f, "(group {})", expression),
+            Expression::FunctionCall(callable, arguments) => write!(
+                f,
+                "({}{}{})",
+                callable,
+                if arguments.len() > 0 { " " } else { "" },
+                arguments
+                    .into_iter()
+                    .map(|e| format!("{}", e))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
         }
     }
 }
@@ -79,6 +112,7 @@ impl fmt::Display for Value {
             Value::Numeric(value) => write!(f, "{}", value),
             Value::Str(value) => write!(f, "\"{}\"", value),
             Value::Boolean(value) => write!(f, "{}", value),
+            Value::Callable(_) => write!(f, "<callable>"),
             Value::Nil => write!(f, "nil"),
         }
     }

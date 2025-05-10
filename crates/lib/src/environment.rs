@@ -1,6 +1,7 @@
-use crate::ast::expression::Value;
+use crate::ast::expression::{Callable, Value};
 
 use std::collections::HashMap;
+use std::time::SystemTime;
 
 #[derive(Debug)]
 pub struct Environment {
@@ -9,9 +10,21 @@ pub struct Environment {
 
 impl Environment {
     pub fn new() -> Self {
-        Environment {
-            variables: HashMap::new(),
-        }
+        let mut variables = HashMap::new();
+
+        variables.insert(
+            String::from("time"),
+            Value::Callable(Callable::new(0, |_| {
+                Value::Numeric(
+                    SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as f64,
+                )
+            })),
+        );
+
+        Environment { variables }
     }
 
     pub fn declare_variable(&mut self, identifier: &str) {
