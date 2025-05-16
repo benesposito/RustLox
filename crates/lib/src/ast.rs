@@ -9,7 +9,7 @@ use statement::Statement;
 pub enum ParseErrorKind {
     UnexpectedToken,
     UnmatchedParenthesis,
-    ExpectedPrimaryExpressionBefore,
+    ExpectedPrimaryExpression,
     ExpectedEndOfExpression,
     ExpectedSemicolon,
     ExpectedIdentifier,
@@ -34,7 +34,15 @@ impl Ast {
         loop {
             match Self::parse_enter(&mut tokens) {
                 Some(Ok(statement)) => statements.push(statement),
-                Some(Err(kind)) => error_recorder.record(&tokens, kind),
+                Some(Err(kind)) => {
+                    error_recorder.record(&tokens, kind);
+
+                    /* synchronize on semicolon */
+                    while match tokens.next() {
+                        Some(Token::FixedToken(FixedToken::Newline)) => false,
+                        _ => true,
+                    } {}
+                }
                 None => break,
             }
         }

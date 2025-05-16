@@ -8,16 +8,16 @@ pub use identifier::Identifier;
 pub use numeric_literal::NumericLiteral;
 pub use string_literal::StringLiteral;
 
-#[derive(Debug)]
-enum LexError {
-    NoKind,
+#[derive(Debug, Clone)]
+pub enum LexError {
+    NoTokenKind,
     NumericContainsAlpha,
     UnclosedString,
 }
 
 type LexResult<T> = std::result::Result<T, LexError>;
 
-pub trait LookaheadLex {
+pub trait LookaheadLex: std::fmt::Debug {
     fn is_kind(input: &str) -> bool;
 
     /// Consume and return a token from a string slice.
@@ -73,8 +73,8 @@ impl Token {
             let new_input = input.trim_start_matches(is_skippable_whitespace);
             let token = &input[..new_input.len()];
             *input = new_input;
-            //Ok(Token::Error(LexError::NoKind, String::from(input[..new_input.len()])))
-            Token::Error(LexError::NoKind)
+            //Ok(Token::Error(LexError::NoTokenKind, String::from(input[..new_input.len()])))
+            Token::Error(LexError::NoTokenKind)
         }
     }
 }
@@ -95,11 +95,9 @@ pub fn tokenize(mut input: &str) -> Result<Vec<Token>, Vec<Token>> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut has_error = false;
 
-    input = input.trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
-
     while !input.is_empty() {
         let token = Token::extract(&mut input);
-        has_error &= matches!(token, Token::Error(_));
+        has_error |= matches!(token, Token::Error(_));
         tokens.push(token);
     }
 
@@ -112,18 +110,19 @@ pub fn tokenize(mut input: &str) -> Result<Vec<Token>, Vec<Token>> {
 pub mod error_context {
     use super::*;
 
-    pub struct RecordedError<ErrorKind> {
-        pub kind: ErrorKind,
+    #[derive(Debug)]
+    pub struct RecordedError<ParseErrorKind> {
+        pub kind: ParseErrorKind,
         pub token_index: usize,
     }
 
-    pub struct ErrorRecorder<ErrorKind> {
+    pub struct ErrorRecorder<ParseErrorKind> {
         //tokens: &'a TokenIterator,
         original_length: usize,
-        pub errors: Vec<RecordedError<ErrorKind>>,
+        pub errors: Vec<RecordedError<ParseErrorKind>>,
     }
 
-    impl<ErrorKind: Clone> ErrorRecorder<ErrorKind> {
+    impl<ParseErrorKind: Clone + std::fmt::Debug> ErrorRecorder<ParseErrorKind> {
         pub fn new(tokens: &impl ExactSizeIterator) -> Self {
             /* take in iterator ref, come up with new name */
             Self {
@@ -133,31 +132,37 @@ pub mod error_context {
             }
         }
 
-        pub fn record(&mut self, tokens: &impl ExactSizeIterator, kind: ErrorKind) {
+        pub fn record(&mut self, tokens: &impl ExactSizeIterator, kind: ParseErrorKind) {
             self.errors.push(RecordedError {
                 kind,
                 token_index: self.original_length - tokens.len(),
             });
         }
 
-        pub fn error_contexts<'a>(&self, input: &'a str) -> Vec<ErrorContext<'a, ErrorKind>> {
+        pub fn error_contexts<'a>(&self, input: &'a str) -> Vec<ErrorContext<'a, ParseErrorKind>> {
             get_error_contexts(input, &self.errors)
         }
     }
 
+    #[derive(Debug, Clone)]
+    pub enum LexAndParseErrorKind<ParseErrorKind> {
+        LexError(LexError),
+        ParseError(ParseErrorKind),
+    }
+
     #[derive(Debug)]
-    struct PartialErrorContext<ErrorKind> {
-        kind: ErrorKind,
+    struct PartialErrorContext<ParseErrorKind> {
+        kind: LexAndParseErrorKind<ParseErrorKind>,
         column: usize,
     }
 
-    pub struct ErrorContext<'a, ErrorKind> {
-        partial: PartialErrorContext<ErrorKind>,
+    pub struct ErrorContext<'a, ParseErrorKind> {
+        partial: PartialErrorContext<ParseErrorKind>,
         line: &'a str,
     }
 
-    impl<'a, ErrorKind: Clone> ErrorContext<'a, ErrorKind> {
-        pub fn kind(&self) -> ErrorKind {
+    impl<'a, ParseErrorKind: Clone> ErrorContext<'a, ParseErrorKind> {
+        pub fn kind(&self) -> LexAndParseErrorKind<ParseErrorKind> {
             self.partial.kind.clone()
         }
 
@@ -170,15 +175,15 @@ pub mod error_context {
         }
     }
 
-    pub fn get_error_contexts<'a, ErrorKind: Clone>(
+    pub fn get_error_contexts<'a, ParseErrorKind: Clone + std::fmt::Debug>(
         mut input: &'a str,
-        errors: &Vec<RecordedError<ErrorKind>>,
-    ) -> Vec<ErrorContext<'a, ErrorKind>> {
-        let mut contexts: Vec<ErrorContext<ErrorKind>> = Vec::with_capacity(errors.len());
-        let mut partials: Vec<PartialErrorContext<ErrorKind>> = Vec::new();
+        errors: &Vec<RecordedError<ParseErrorKind>>,
+    ) -> Vec<ErrorContext<'a, ParseErrorKind>> {
+        let mut contexts: Vec<ErrorContext<ParseErrorKind>> = Vec::with_capacity(errors.len());
+        let mut partials: Vec<PartialErrorContext<ParseErrorKind>> = Vec::new();
 
         let errors = errors.iter().scan(0, |prev_token_index, error| {
-            let new_error = RecordedError::<ErrorKind> {
+            let new_error = RecordedError::<ParseErrorKind> {
                 kind: error.kind.clone(),
                 token_index: error.token_index - *prev_token_index,
             };
@@ -215,10 +220,28 @@ pub mod error_context {
                 }
             }
 
-            partials.push(PartialErrorContext {
-                kind: error.kind.clone(),
-                column,
-            });
+            while is_skippable_whitespace(input.chars().next().unwrap()) {
+                input = &input[1..];
+                column += 1;
+            }
+
+            let original_input_len = input.len();
+            match Token::extract(&mut input) {
+                Token::Error(error) => {
+                    partials.push(PartialErrorContext {
+                        kind: LexAndParseErrorKind::LexError(error.clone()),
+                        column,
+                    });
+                }
+                _ => {
+                    partials.push(PartialErrorContext {
+                        kind: LexAndParseErrorKind::ParseError(error.kind.clone()),
+                        column,
+                    });
+                }
+            }
+
+            column += original_input_len - input.len();
         }
 
         if !partials.is_empty() {

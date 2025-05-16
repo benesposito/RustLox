@@ -1,4 +1,4 @@
-use super::{LookaheadLex, Token, LexError, LexResult};
+use super::{LexError, LexResult, LookaheadLex, Token};
 
 #[derive(Debug)]
 pub struct StringLiteral {
@@ -12,12 +12,20 @@ impl LookaheadLex for StringLiteral {
 
     fn extract(input: &mut &str) -> LexResult<Self> {
         for (i, c) in input.chars().enumerate().skip(1) {
-            if c == '"' {
-                let token = &input[1..i];
-                *input = &input[i + 1..];
-                return Ok(StringLiteral {
-                    value: String::from(token),
-                });
+            match c {
+                '"' => {
+                    let token = &input[1..i];
+                    *input = &input[i + 1..];
+                    return Ok(StringLiteral {
+                        value: String::from(token),
+                    });
+                }
+                '\n' => {
+                    *input = &input[i..];
+                    println!("input: {:?}", input);
+                    return Err(LexError::UnclosedString);
+                }
+                _ => (),
             }
         }
 

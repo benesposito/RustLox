@@ -195,6 +195,6 @@ fn primary(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Ex
         Token::FixedToken(FixedToken::True) => Ok(Expression::Value(Value::Boolean(true))),
         Token::FixedToken(FixedToken::False) => Ok(Expression::Value(Value::Boolean(false))),
         Token::FixedToken(FixedToken::Nil) => Ok(Expression::Value(Value::Nil)),
-        _ => Err(ParseErrorKind::ExpectedPrimaryExpressionBefore),
+        _ => Err(ParseErrorKind::ExpectedPrimaryExpression),
     }
 }

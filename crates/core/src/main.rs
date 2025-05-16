@@ -10,7 +10,11 @@ enum Error {
 }
 
 fn get_ast(code: &str) -> Result<ast::Ast, Error> {
-    let tokens = lexer::tokenize(&code).unwrap();
+    let tokens = match lexer::tokenize(&code) {
+        Ok(tokens) => tokens,
+        Err(tokens) => tokens,
+    };
+
     println!("{:#?}", tokens);
     let ast = match ast::Ast::parse(tokens.into_iter()) {
         Ok(ast) => ast,
