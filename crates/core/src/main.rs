@@ -1,6 +1,7 @@
 use lib::*;
 
-use std::env;
+use clap::Parser;
+
 use std::io;
 
 #[derive(Debug)]
@@ -32,11 +33,23 @@ fn get_ast(code: &str) -> Result<ast::Ast, Error> {
     Ok(ast)
 }
 
-fn main() -> Result<(), Error> {
-    let mut args = env::args();
-    let _ = args.next();
+#[derive(Parser)]
+#[command()]
+struct Args {
+    #[arg(long, default_value_t = false, help = "Print the tokens for each statement")]
+    show_tokens: bool,
 
-    if let Some(filename) = args.next() {
+    #[arg(long, default_value_t = false, help = "Print the ast for each statement")]
+    show_ast: bool,
+
+    #[arg(help = "Script to execute. If not specified, enter interactive mode.")]
+    script: Option<String>,
+}
+
+fn main() -> Result<(), Error> {
+    let args = Args::parse();
+
+    if let Some(filename) = args.script {
         println!("{filename}");
         interpret_file(&filename)?;
     } else {
