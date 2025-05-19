@@ -1,13 +1,16 @@
-use super::expression::Expression;
+use super::expression;
 use super::{ParseErrorKind, ParseResult};
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
 use crate::lexer::{FixedToken, Token};
+use expression::Expression;
 
 use std::iter::Peekable;
 
+#[derive(Debug)]
 pub enum Statement {
     Expression(Expression),
+    Block(Vec<Box<Statement>>),
     Print(Expression),
     VariableDeclaration(String),
     VariableDefinition(String, Expression),
@@ -21,6 +24,13 @@ impl Statement {
     pub fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError> {
         match self {
             Statement::Expression(expression) => expression.evaluate(environment).map(|_| ()),
+            Statement::Block(statements) => {
+                let mut environment = Environment::inner(environment);
+                for statement in statements {
+                    statement.evaluate(&mut environment)?
+                }
+                Ok(())
+            }
             Statement::Print(expression) => {
                 println!("{}", expression.evaluate(environment)?);
                 Ok(())
@@ -40,6 +50,22 @@ impl Statement {
 
 fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Statement> {
     let statement = match tokens.peek().expect("Expected tokens") {
+        Token::FixedToken(FixedToken::LeftBrace) => {
+            tokens.next();
+
+            let mut statements: Vec<Box<Statement>> = Vec::new();
+
+            while !matches!(
+                tokens.peek(),
+                Some(Token::FixedToken(FixedToken::RightBrace))
+            ) {
+                statements.push(Box::new(statement(tokens)?));
+            }
+
+            tokens.next();
+
+            return Ok(Statement::Block(statements));
+        }
         Token::FixedToken(FixedToken::Print) => {
             tokens.next();
             Statement::Print(Expression::parse(tokens)?)
@@ -84,6 +110,7 @@ impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Statement::Expression(expression) => write!(f, "{}", expression),
+            Statement::Block(statements) => write!(f, "(block {:?})", statements),
             Statement::Print(expression) => write!(f, "(print {})", expression),
             Statement::VariableDeclaration(identifier) => {
                 write!(f, "(declare-variable {})", identifier)

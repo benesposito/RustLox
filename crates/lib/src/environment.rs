@@ -4,12 +4,13 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 
 #[derive(Debug)]
-pub struct Environment {
+pub struct Environment<'a> {
+    parent: Option<&'a Environment<'a>>,
     variables: HashMap<String, Value>,
 }
 
-impl Environment {
-    pub fn new() -> Self {
+impl<'a> Environment<'_> {
+    pub fn global() -> Environment<'a> {
         let mut variables = HashMap::new();
 
         variables.insert(
@@ -24,7 +25,17 @@ impl Environment {
             })),
         );
 
-        Environment { variables }
+        Environment {
+            parent: None,
+            variables: variables,
+        }
+    }
+
+    pub fn inner(parent: &'a Environment) -> Environment<'a> {
+        Environment {
+            parent: Some(parent),
+            variables: HashMap::new(),
+        }
     }
 
     pub fn declare_variable(&mut self, identifier: &str) {
@@ -36,6 +47,12 @@ impl Environment {
     }
 
     pub fn lookup_variable(&self, identifier: &str) -> Option<Value> {
-        self.variables.get(identifier).cloned()
+        match self.variables.get(identifier) {
+            Some(value) => Some(value.clone()),
+            None => match self.parent {
+                Some(env) => env.lookup_variable(identifier),
+                None => None,
+            },
+        }
     }
 }

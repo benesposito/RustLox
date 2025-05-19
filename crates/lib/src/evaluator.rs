@@ -8,14 +8,14 @@ pub enum RuntimeError {
     WrongNumberOfArguments,
 }
 
-pub struct Evaluator {
-    pub environment: Environment,
+pub struct Evaluator<'a> {
+    pub environment: Environment<'a>,
 }
 
-impl Evaluator {
+impl<'a> Evaluator<'_> {
     pub fn new() -> Self {
         Evaluator {
-            environment: Environment::new(),
+            environment: Environment::global(),
         }
     }
 
