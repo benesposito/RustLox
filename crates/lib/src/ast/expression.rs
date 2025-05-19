@@ -6,6 +6,7 @@ use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
 use crate::lexer::Token;
 
+#[derive(Debug)]
 pub enum Expression {
     Grouping(Box<Expression>),
     Value(Value),
@@ -27,7 +28,7 @@ impl Expression {
     }
 }
 
-#[allow(dead_code)]
+#[derive(Debug)]
 pub enum BinaryOperator {
     Equality,
     Inequality,
@@ -43,6 +44,7 @@ pub enum BinaryOperator {
     Division,
 }
 
+#[derive(Debug)]
 pub enum UnaryOperator {
     Negate,
     Not,

@@ -70,7 +70,7 @@ impl Token {
             Token::from(Identifier::extract(input))
         } else {
             /* synchronize on space */
-            let new_input = input.trim_start_matches(is_skippable_whitespace);
+            let new_input = input.trim_start_matches(|c| !is_skippable_whitespace(c));
             let token = &input[..new_input.len()];
             *input = new_input;
             //Ok(Token::Error(LexError::NoTokenKind, String::from(input[..new_input.len()])))
@@ -119,7 +119,7 @@ pub mod error_context {
     pub struct ErrorRecorder<ParseErrorKind> {
         //tokens: &'a TokenIterator,
         original_length: usize,
-        pub errors: Vec<RecordedError<ParseErrorKind>>,
+        errors: Vec<RecordedError<ParseErrorKind>>,
     }
 
     impl<ParseErrorKind: Clone + std::fmt::Debug> ErrorRecorder<ParseErrorKind> {
@@ -139,8 +139,8 @@ pub mod error_context {
             });
         }
 
-        pub fn error_contexts<'a>(&self, input: &'a str) -> Vec<ErrorContext<'a, ParseErrorKind>> {
-            get_error_contexts(input, &self.errors)
+        pub fn errors(self) -> Errors<ParseErrorKind> {
+            Errors::new(self.errors)
         }
     }
 
@@ -161,7 +161,7 @@ pub mod error_context {
         line: &'a str,
     }
 
-    impl<'a, ParseErrorKind: Clone> ErrorContext<'a, ParseErrorKind> {
+    impl<'a, ParseErrorKind: Clone + std::fmt::Debug> ErrorContext<'a, ParseErrorKind> {
         pub fn kind(&self) -> LexAndParseErrorKind<ParseErrorKind> {
             self.partial.kind.clone()
         }
@@ -175,14 +175,50 @@ pub mod error_context {
         }
     }
 
-    pub fn get_error_contexts<'a, ParseErrorKind: Clone + std::fmt::Debug>(
+    impl<'a, ParseErrorKind: Clone + std::fmt::Debug> std::fmt::Display for ErrorContext<'a, ParseErrorKind> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            writeln!(f, "{:?}, {}", self.kind(), self.column())?;
+
+            writeln!(f, "{}", self.line())?;
+            write!(f, "{}^", String::from(" ").repeat(self.column()))?;
+
+            Ok(())
+        }
+    }
+
+    pub struct Errors<ParseErrorKind> {
+        errors: Vec<RecordedError<ParseErrorKind>>,
+    }
+
+    impl<ParseErrorKind: Clone + std::fmt::Debug> Errors<ParseErrorKind> {
+        pub fn new(errors: Vec<RecordedError<ParseErrorKind>>) -> Self {
+            Errors { errors }
+        }
+
+        pub fn has_errors(&self) -> bool {
+            !self.errors.is_empty()
+        }
+
+        pub fn error_kinds(&self) -> impl Iterator<Item = ParseErrorKind> {
+            self.errors.iter().map(|error| error.kind.clone())
+        }
+
+        pub fn error_contexts<'a>(
+            &self,
+            input: &'a str,
+        ) -> impl Iterator<Item = ErrorContext<'a, ParseErrorKind>> {
+            get_error_contexts(input, self.errors.iter()).into_iter()
+        }
+    }
+
+    fn get_error_contexts<'a, 'b, ParseErrorKind: Clone + std::fmt::Debug + 'b>(
         mut input: &'a str,
-        errors: &Vec<RecordedError<ParseErrorKind>>,
+        errors: impl ExactSizeIterator<Item = &'b RecordedError<ParseErrorKind>>,
     ) -> Vec<ErrorContext<'a, ParseErrorKind>> {
         let mut contexts: Vec<ErrorContext<ParseErrorKind>> = Vec::with_capacity(errors.len());
         let mut partials: Vec<PartialErrorContext<ParseErrorKind>> = Vec::new();
 
-        let errors = errors.iter().scan(0, |prev_token_index, error| {
+        let errors = errors.scan(0, |prev_token_index, error| {
             let new_error = RecordedError::<ParseErrorKind> {
                 kind: error.kind.clone(),
                 token_index: error.token_index - *prev_token_index,
