@@ -86,23 +86,33 @@ pub fn evaluate(
                 }
             }
             BinaryOperator::And => {
-                match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
-                ) {
-                    (Value::Boolean(left_value), Value::Boolean(right_value)) => {
-                        Ok(Value::Boolean(left_value && right_value))
+                let lhs = left_expression.evaluate(environment)?;
+
+                match lhs {
+                    Value::Boolean(lhs_bool) if !lhs_bool => Ok(lhs),
+                    Value::Boolean(lhs_bool) if lhs_bool => {
+                        let rhs = right_expression.evaluate(environment)?;
+
+                        match rhs {
+                            Value::Boolean(_) => Ok(rhs),
+                            _ => todo!("or operator not supported for types"),
+                        }
                     }
-                    _ => todo!("and operator not supported for types"),
+                    _ => todo!("or operator not supported for types"),
                 }
             }
             BinaryOperator::Or => {
-                match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
-                ) {
-                    (Value::Boolean(left_value), Value::Boolean(right_value)) => {
-                        Ok(Value::Boolean(left_value || right_value))
+                let lhs = left_expression.evaluate(environment)?;
+
+                match lhs {
+                    Value::Boolean(lhs_bool) if lhs_bool => Ok(lhs),
+                    Value::Boolean(lhs_bool) if !lhs_bool => {
+                        let rhs = right_expression.evaluate(environment)?;
+
+                        match rhs {
+                            Value::Boolean(_) => Ok(rhs),
+                            _ => todo!("or operator not supported for types"),
+                        }
                     }
                     _ => todo!("or operator not supported for types"),
                 }
