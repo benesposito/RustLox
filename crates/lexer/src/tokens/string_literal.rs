@@ -1,4 +1,5 @@
-use super::{LexError, LexResult, LookaheadLex, Token};
+use super::LookaheadLex;
+use crate::{LexError, LexResult, Token};
 
 #[derive(Debug)]
 pub struct StringLiteral {

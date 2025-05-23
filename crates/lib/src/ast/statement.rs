@@ -2,8 +2,9 @@ use super::expression;
 use super::{ParseErrorKind, ParseResult};
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
-use crate::lexer::{FixedToken, Token};
 use expression::Expression;
+
+use lexer::{Token, tokens::FixedToken};
 
 use std::iter::Peekable;
 

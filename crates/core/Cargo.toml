@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
+lexer = { version = "0.1.0", path = "../lexer" }
 lib = { path = "../lib" }

@@ -1,4 +1,5 @@
-use super::{LookaheadLex, LexResult, Token};
+use super::LookaheadLex;
+use crate::{LexResult, Token};
 
 #[derive(Debug, PartialEq)]
 pub struct Identifier {

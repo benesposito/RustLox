@@ -4,7 +4,8 @@ mod parser;
 use super::ParseResult;
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
-use crate::lexer::Token;
+
+use lexer::Token;
 
 #[derive(Debug)]
 pub enum Expression {

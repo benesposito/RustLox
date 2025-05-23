@@ -1,11 +1,10 @@
 pub mod expression;
 pub mod statement;
 
-use crate::lexer::{
-    FixedToken, Token,
-    error_context::{Errors, RecordedError},
-};
+use error::{Errors, RecordedError};
 use statement::Statement;
+
+use lexer::{LexError, Token, tokens::FixedToken};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -29,7 +28,7 @@ impl Ast {
     pub fn parse(
         mut tokens: impl ExactSizeIterator<Item = Token>,
     ) -> Result<Self, Errors<ParseErrorKind>> {
-        use crate::lexer::error_context::ErrorRecorder;
+        use error::ErrorRecorder;
 
         let mut statements: Vec<Statement> = Vec::new();
         let mut error_recorder = ErrorRecorder::<ParseErrorKind>::new(&tokens);

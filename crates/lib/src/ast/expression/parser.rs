@@ -1,6 +1,7 @@
 use super::{BinaryOperator, Expression, UnaryOperator, Value};
 use crate::ast::{ParseErrorKind, ParseResult};
-use crate::lexer::{FixedToken, Token};
+
+use lexer::{Token, tokens::FixedToken};
 
 use std::iter::Peekable;
 
