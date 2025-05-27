@@ -1,13 +1,11 @@
 pub mod expression;
 pub mod statement;
 
-use error::{Errors, RecordedError};
-use statement::Statement;
+use statement::declaration::DeclarationList;
 
-use lexer::{LexError, Token, tokens::FixedToken};
+use lexer::Token;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ParseErrorKind {
     UnexpectedToken,
     UnmatchedParenthesis,
@@ -17,58 +15,73 @@ pub enum ParseErrorKind {
     ExpectedIdentifier,
 }
 
-type ParseResult<T> = Result<T, ParseErrorKind>;
-pub type ParseError = RecordedError<ParseErrorKind>;
+enum ShouldSynchronize {
+    Yes,
+    No,
+}
+
+type ParseResult<T> = Result<T, ShouldSynchronize>;
+pub type ParseError = error::RecordedError<ParseErrorKind>;
+
+struct ParseContext<ErrorKind, I>
+where
+    ErrorKind: Clone + std::fmt::Debug,
+    I: Iterator<Item = Token>,
+{
+    recorder: error::ErrorRecorder<ErrorKind, I>,
+}
+
+impl<ErrorKind: Clone + std::fmt::Debug> ParseContext<ErrorKind, error::DummyIterator> {
+    pub fn new<I: ExactSizeIterator<Item = Token>>(
+        tokens: I,
+    ) -> ParseContext<ErrorKind, impl Iterator<Item = Token>> {
+        ParseContext {
+            recorder: error::ErrorRecorder::new(tokens),
+        }
+    }
+}
+
+impl<ErrorKind, I> ParseContext<ErrorKind, I>
+where
+    ErrorKind: Clone + std::fmt::Debug,
+    I: Iterator<Item = Token>,
+{
+    pub fn tokens(&mut self) -> &mut std::iter::Peekable<impl Iterator<Item = Token>> {
+        self.recorder.tokens()
+    }
+
+    pub fn record_error(&mut self, kind: ErrorKind) {
+        self.recorder.record(kind)
+    }
+
+    pub fn errors(self) -> error::Errors<ErrorKind> {
+        self.recorder.errors()
+    }
+}
 
 pub struct Ast {
-    pub statements: Vec<Statement>,
+    pub declaration_list: DeclarationList,
 }
 
 impl Ast {
     pub fn parse(
-        mut tokens: impl ExactSizeIterator<Item = Token>,
-    ) -> Result<Self, Errors<ParseErrorKind>> {
-        use error::ErrorRecorder;
+        tokens: impl ExactSizeIterator<Item = Token>,
+    ) -> Result<Self, error::Errors<ParseErrorKind>> {
+        let mut parse_context = ParseContext::<ParseErrorKind, _>::new(tokens);
 
-        let mut statements: Vec<Statement> = Vec::new();
-        let mut error_recorder = ErrorRecorder::<ParseErrorKind>::new(&tokens);
-
-        loop {
-            match Self::parse_enter(&mut tokens) {
-                Some(Ok(statement)) => statements.push(statement),
-                Some(Err(kind)) => {
-                    error_recorder.record(&tokens, kind);
-
-                    /* synchronize on semicolon */
-                    while match tokens.next() {
-                        Some(Token::FixedToken(FixedToken::Newline)) => false,
-                        _ => true,
-                    } {}
-                }
-                None => break,
-            }
-        }
-
-        let errors = error_recorder.errors();
-
-        if !errors.has_errors() {
-            Ok(Ast { statements })
-        } else {
-            Err(errors)
+        match DeclarationList::parse(&mut parse_context) {
+            Ok(declaration_list) => Ok(Ast { declaration_list }),
+            Err(_) => Err(parse_context.errors()),
         }
     }
+}
 
-    fn parse_enter(
-        tokens: &mut impl Iterator<Item = Token>,
-    ) -> Option<Result<Statement, ParseErrorKind>> {
-        let mut tokens = tokens
-            .filter(|token| !matches!(*token, Token::FixedToken(FixedToken::Newline)))
-            .peekable();
+fn synchronize_default(tokens: &mut impl Iterator<Item = Token>) {
+    synchronize(tokens, lexer::tokens::FixedToken::Semicolon)
+}
 
-        if tokens.peek().is_some() {
-            Some(Statement::parse(&mut tokens))
-        } else {
-            None
-        }
-    }
+fn synchronize(tokens: &mut impl Iterator<Item = Token>, token: lexer::tokens::FixedToken) {
+    tokens.find(|t| {
+        matches!(t, Token::FixedToken(fixed_token) if std::mem::discriminant(fixed_token) == std::mem::discriminant(&token))
+    });
 }

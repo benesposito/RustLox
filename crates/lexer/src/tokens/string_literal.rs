@@ -23,7 +23,6 @@ impl LookaheadLex for StringLiteral {
                 }
                 '\n' => {
                     *input = &input[i..];
-                    println!("input: {:?}", input);
                     return Err(LexError::UnclosedString);
                 }
                 _ => (),

@@ -141,8 +141,8 @@ impl Interpreter {
         };
 
         if self.show_ast {
-            for statement in ast.statements.iter() {
-                println!("{}", statement);
+            for declaration in &ast.declaration_list.list {
+                println!("{}", declaration);
             }
         }
 

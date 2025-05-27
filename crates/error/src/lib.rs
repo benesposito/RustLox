@@ -1,5 +1,3 @@
-use lexer::{Token, is_skippable_whitespace};
-
 pub enum Error<ErrorKind, PreviousErrorKind> {
     Error(ErrorKind),
     PreviousError(PreviousErrorKind),
@@ -7,35 +5,93 @@ pub enum Error<ErrorKind, PreviousErrorKind> {
 
 #[derive(Debug)]
 pub struct RecordedError<ErrorKind> {
-    pub kind: ErrorKind,
     pub token_index: usize,
+    pub kind: ErrorKind,
 }
 
-pub struct ErrorRecorder<ErrorKind> {
-    //tokens: &'a TokenIterator,
+pub struct Errors<ErrorKind> {
+    errors: Vec<RecordedError<ErrorKind>>,
+}
+
+impl<ErrorKind> Errors<ErrorKind>
+where
+    ErrorKind: Clone + std::fmt::Debug,
+{
+    pub fn new(errors: Vec<RecordedError<ErrorKind>>) -> Self {
+        Errors { errors }
+    }
+
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    pub fn error_kinds(&self) -> impl Iterator<Item = ErrorKind> {
+        self.errors.iter().map(|error| error.kind.clone())
+    }
+
+    pub fn error_contexts<'a>(
+        &self,
+        input: &'a str,
+    ) -> impl Iterator<Item = ErrorContext<'a, ErrorKind>> {
+        get_error_contexts(input, self.errors.iter()).into_iter()
+    }
+}
+
+pub struct ErrorRecorder<ErrorKind, I: Iterator<Item = lexer::Token>> {
+    tokens: std::iter::Peekable<I>,
     original_length: usize,
     errors: Vec<RecordedError<ErrorKind>>,
 }
 
-impl<ErrorKind: Clone + std::fmt::Debug> ErrorRecorder<ErrorKind> {
-    pub fn new(tokens: &impl ExactSizeIterator) -> Self {
-        /* take in iterator ref, come up with new name */
-        Self {
-            //tokens,
+pub struct DummyIterator {}
+impl Iterator for DummyIterator {
+    type Item = lexer::Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+impl<ErrorKind> ErrorRecorder<ErrorKind, DummyIterator> {
+    pub fn new<I: ExactSizeIterator<Item = lexer::Token>>(
+        tokens: I,
+    ) -> ErrorRecorder<ErrorKind, impl Iterator<Item = lexer::Token>> {
+        ErrorRecorder {
             original_length: tokens.len(),
+            tokens: tokens
+                .filter(|token| {
+                    !matches!(
+                        token,
+                        lexer::Token::FixedToken(lexer::tokens::FixedToken::Newline)
+                    )
+                })
+                .peekable(),
             errors: Vec::new(),
         }
     }
+}
 
-    pub fn record(&mut self, tokens: &impl ExactSizeIterator, kind: ErrorKind) {
+impl<ErrorKind, I> ErrorRecorder<ErrorKind, I>
+where
+    ErrorKind: Clone + std::fmt::Debug,
+    I: Iterator<Item = lexer::Token>,
+{
+    pub fn tokens(&mut self) -> &mut std::iter::Peekable<impl Iterator<Item = lexer::Token>> {
+        &mut self.tokens
+    }
+
+    pub fn record(&mut self, kind: ErrorKind) {
         self.errors.push(RecordedError {
+            token_index: self.original_length - self.unfiltered_len(),
             kind,
-            token_index: self.original_length - tokens.len(),
         });
     }
 
     pub fn errors(self) -> Errors<ErrorKind> {
         Errors::new(self.errors)
+    }
+
+    fn unfiltered_len(&self) -> usize {
+        self.tokens.size_hint().1.unwrap()
     }
 }
 
@@ -75,31 +131,6 @@ impl<'a, ErrorKind: Clone + std::fmt::Debug> std::fmt::Display for ErrorContext<
     }
 }
 
-pub struct Errors<ErrorKind> {
-    errors: Vec<RecordedError<ErrorKind>>,
-}
-
-impl<ErrorKind: Clone + std::fmt::Debug> Errors<ErrorKind> {
-    pub fn new(errors: Vec<RecordedError<ErrorKind>>) -> Self {
-        Errors { errors }
-    }
-
-    pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
-    }
-
-    pub fn error_kinds(&self) -> impl Iterator<Item = ErrorKind> {
-        self.errors.iter().map(|error| error.kind.clone())
-    }
-
-    pub fn error_contexts<'a>(
-        &self,
-        input: &'a str,
-    ) -> impl Iterator<Item = ErrorContext<'a, ErrorKind>> {
-        get_error_contexts(input, self.errors.iter()).into_iter()
-    }
-}
-
 fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
     mut input: &'a str,
     errors: impl ExactSizeIterator<Item = &'b RecordedError<ErrorKind>>,
@@ -122,16 +153,16 @@ fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
 
     for error in errors {
         for _ in 0..(error.token_index - 1) {
-            while is_skippable_whitespace(input.chars().next().unwrap()) {
+            while lexer::is_skippable_whitespace(input.chars().next().unwrap()) {
                 input = &input[1..];
                 column += 1;
             }
 
             let original_input_len = input.len();
-            match Token::extract(&mut input) {
-                Token::FixedToken(lexer::tokens::FixedToken::Newline) => {
+            match lexer::Token::extract(&mut input) {
+                lexer::Token::FixedToken(lexer::tokens::FixedToken::Newline) => {
                     contexts.extend(partials.into_iter().map(|partial| ErrorContext {
-                        partial: partial,
+                        partial,
                         line: &start_of_line[0..column],
                     }));
 
@@ -145,7 +176,7 @@ fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
             }
         }
 
-        while is_skippable_whitespace(input.chars().next().unwrap()) {
+        while lexer::is_skippable_whitespace(input.chars().next().unwrap()) {
             input = &input[1..];
             column += 1;
         }
@@ -156,21 +187,21 @@ fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
         });
 
         let original_input_len = input.len();
-        Token::extract(&mut input);
+        lexer::Token::extract(&mut input);
         column += original_input_len - input.len();
     }
 
     if !partials.is_empty() {
         loop {
             let original_input_len = input.len();
-            match Token::extract(&mut input) {
-                Token::FixedToken(lexer::tokens::FixedToken::Newline) => break,
+            match lexer::Token::extract(&mut input) {
+                lexer::Token::FixedToken(lexer::tokens::FixedToken::Newline) => break,
                 _ => column += original_input_len - input.len(),
             }
         }
 
         contexts.extend(partials.into_iter().map(|partial| ErrorContext {
-            partial: partial,
+            partial,
             line: &start_of_line[0..column],
         }));
     }

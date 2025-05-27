@@ -1,7 +1,7 @@
 mod evaluator;
 mod parser;
 
-use super::ParseResult;
+use super::*;
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
 
@@ -18,10 +18,10 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn parse(
-        tokens: &mut std::iter::Peekable<impl Iterator<Item = Token>>,
+    pub fn parse<T: Iterator<Item = Token>>(
+        parse_context: &mut ParseContext<ParseErrorKind, T>,
     ) -> ParseResult<Self> {
-        parser::expression(tokens)
+        parser::expression(parse_context)
     }
 
     pub fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {

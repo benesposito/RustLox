@@ -64,7 +64,6 @@ mod tests {
         let range = rand_distr::Frechet::new(0.0, 2.0, 0.1).unwrap();
         let value = range.sample(rng) * (*[-1.0, 1.0].choose(rng).unwrap());
 
-        println!("{:?}", (value.to_string(), NumericLiteral { value }));
         (value.to_string(), NumericLiteral { value })
     }
 

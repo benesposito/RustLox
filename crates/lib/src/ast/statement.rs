@@ -1,25 +1,26 @@
+pub mod declaration;
+
 use super::expression;
-use super::{ParseErrorKind, ParseResult};
+use crate::ast::{ParseContext, ParseErrorKind, ParseResult, ShouldSynchronize};
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
+use declaration::Declaration;
 use expression::Expression;
 
 use lexer::{Token, tokens::FixedToken};
 
-use std::iter::Peekable;
-
 #[derive(Debug)]
 pub enum Statement {
     Expression(Expression),
-    Block(Vec<Box<Statement>>),
+    Block(Vec<Box<Declaration>>),
     Print(Expression),
-    VariableDeclaration(String),
-    VariableDefinition(String, Expression),
 }
 
 impl Statement {
-    pub fn parse(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Self> {
-        statement(tokens)
+    fn parse<T: Iterator<Item = Token>>(
+        parse_context: &mut ParseContext<ParseErrorKind, T>,
+    ) -> ParseResult<Self> {
+        statement(parse_context)
     }
 
     pub fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError> {
@@ -36,71 +37,56 @@ impl Statement {
                 println!("{}", expression.evaluate(environment)?);
                 Ok(())
             }
-            Statement::VariableDeclaration(identifier) => {
-                environment.declare_variable(identifier);
-                Ok(())
-            }
-            Statement::VariableDefinition(identifier, expression) => {
-                let value = expression.evaluate(environment)?;
-                environment.define_variable(identifier, value);
-                Ok(())
-            }
         }
     }
 }
 
-fn statement(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> ParseResult<Statement> {
-    let statement = match tokens.peek().expect("Expected tokens") {
+fn statement<T: Iterator<Item = Token>>(
+    parse_context: &mut ParseContext<ParseErrorKind, T>,
+) -> ParseResult<Statement> {
+    match parse_context.tokens().peek().expect("Expected tokens") {
         Token::FixedToken(FixedToken::LeftBrace) => {
-            tokens.next();
+            parse_context.tokens().next();
 
-            let mut statements: Vec<Box<Statement>> = Vec::new();
+            let mut declarations: Vec<Declaration> = Vec::new();
 
             while !matches!(
-                tokens.peek(),
+                parse_context.tokens().peek(),
                 Some(Token::FixedToken(FixedToken::RightBrace))
             ) {
-                statements.push(Box::new(statement(tokens)?));
+                declarations.push(Declaration::parse(parse_context)?);
             }
 
-            tokens.next();
+            parse_context.tokens().next();
 
-            return Ok(Statement::Block(statements));
+            Ok(Statement::Block(
+                declarations
+                    .into_iter()
+                    .map(|d| Box::new(d))
+                    .collect::<Vec<_>>(),
+            ))
         }
         Token::FixedToken(FixedToken::Print) => {
-            tokens.next();
-            Statement::Print(Expression::parse(tokens)?)
-        }
-        Token::FixedToken(FixedToken::Var) => {
-            tokens.next();
+            parse_context.tokens().next();
 
-            let identifier = match tokens.next() {
-                Some(Token::Identifier(identifier)) => identifier,
-                _ => return Err(ParseErrorKind::ExpectedIdentifier),
-            };
-
-            match tokens.peek() {
-                Some(Token::FixedToken(FixedToken::Equal)) => {
-                    tokens.next();
-                    Statement::VariableDefinition(identifier.name, Expression::parse(tokens)?)
+            let statement = Statement::Print(Expression::parse(parse_context)?);
+            match parse_context.tokens().next() {
+                Some(Token::FixedToken(FixedToken::Semicolon)) => Ok(statement),
+                _ => {
+                    parse_context.record_error(ParseErrorKind::ExpectedSemicolon);
+                    Err(ShouldSynchronize::Yes)
                 }
-                _ => Statement::VariableDeclaration(identifier.name),
             }
         }
-        _ => Statement::Expression(Expression::parse(tokens)?),
-    };
-
-    match tokens.next() {
-        Some(Token::FixedToken(FixedToken::Semicolon)) => Ok(statement),
         _ => {
-            loop {
-                match tokens.next() {
-                    Some(Token::FixedToken(FixedToken::Semicolon)) | None => break,
-                    _ => (),
-                };
+            let statement = Statement::Expression(Expression::parse(parse_context)?);
+            match parse_context.tokens().next() {
+                Some(Token::FixedToken(FixedToken::Semicolon)) => Ok(statement),
+                _ => {
+                    parse_context.record_error(ParseErrorKind::ExpectedSemicolon);
+                    Err(ShouldSynchronize::Yes)
+                }
             }
-
-            Err(ParseErrorKind::ExpectedSemicolon)
         }
     }
 }
@@ -113,12 +99,6 @@ impl fmt::Display for Statement {
             Statement::Expression(expression) => write!(f, "{}", expression),
             Statement::Block(statements) => write!(f, "(block {:?})", statements),
             Statement::Print(expression) => write!(f, "(print {})", expression),
-            Statement::VariableDeclaration(identifier) => {
-                write!(f, "(declare-variable {})", identifier)
-            }
-            Statement::VariableDefinition(identifier, initial_value) => {
-                write!(f, "(define-variable {} {})", identifier, initial_value)
-            }
         }
     }
 }

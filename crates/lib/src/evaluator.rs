@@ -20,8 +20,8 @@ impl<'a> Evaluator<'_> {
     }
 
     pub fn evaluate(&mut self, ast: &Ast) -> Result<(), RuntimeError> {
-        for statement in ast.statements.iter() {
-            statement.evaluate(&mut self.environment)?;
+        for declaration in &ast.declaration_list.list {
+            declaration.evaluate(&mut self.environment)?;
         }
 
         Ok(())
