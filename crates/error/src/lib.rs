@@ -32,7 +32,7 @@ where
     pub fn error_contexts<'a>(
         &self,
         input: &'a str,
-    ) -> impl Iterator<Item = ErrorContext<'a, ErrorKind>> {
+    ) -> impl Iterator<Item = ErrorContext<ErrorKind>> {
         get_error_contexts(input, self.errors.iter()).into_iter()
     }
 }
@@ -101,12 +101,12 @@ struct PartialErrorContext<ErrorKind> {
     column: usize,
 }
 
-pub struct ErrorContext<'a, ErrorKind> {
+pub struct ErrorContext<ErrorKind> {
     partial: PartialErrorContext<ErrorKind>,
-    line: &'a str,
+    line: String,
 }
 
-impl<'a, ErrorKind: Clone + std::fmt::Debug> ErrorContext<'a, ErrorKind> {
+impl<'a, ErrorKind: Clone + std::fmt::Debug> ErrorContext<ErrorKind> {
     pub fn kind(&self) -> ErrorKind {
         self.partial.kind.clone()
     }
@@ -115,12 +115,12 @@ impl<'a, ErrorKind: Clone + std::fmt::Debug> ErrorContext<'a, ErrorKind> {
         self.partial.column
     }
 
-    pub fn line(&self) -> &'a str {
-        self.line
+    pub fn line(&self) -> &str {
+        &self.line
     }
 }
 
-impl<'a, ErrorKind: Clone + std::fmt::Debug> std::fmt::Display for ErrorContext<'a, ErrorKind> {
+impl<'a, ErrorKind: Clone + std::fmt::Debug> std::fmt::Display for ErrorContext<ErrorKind> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{:?}, {}", self.kind(), self.column())?;
 
@@ -131,10 +131,10 @@ impl<'a, ErrorKind: Clone + std::fmt::Debug> std::fmt::Display for ErrorContext<
     }
 }
 
-fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
-    mut input: &'a str,
-    errors: impl ExactSizeIterator<Item = &'b RecordedError<ErrorKind>>,
-) -> Vec<ErrorContext<'a, ErrorKind>> {
+fn get_error_contexts<'a, ErrorKind: Clone + std::fmt::Debug + 'a>(
+    mut input: &str,
+    errors: impl ExactSizeIterator<Item = &'a RecordedError<ErrorKind>> + std::fmt::Debug,
+) -> Vec<ErrorContext<ErrorKind>> {
     let mut contexts: Vec<ErrorContext<ErrorKind>> = Vec::with_capacity(errors.len());
     let mut partials: Vec<PartialErrorContext<ErrorKind>> = Vec::new();
 
@@ -149,46 +149,40 @@ fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
     });
 
     let mut start_of_line = input;
-    let mut column: usize = 0;
+    let mut token_index: usize = 0;
 
     for error in errors {
         for _ in 0..(error.token_index - 1) {
-            while lexer::is_skippable_whitespace(input.chars().next().unwrap()) {
-                input = &input[1..];
-                column += 1;
-            }
+            token_index += skip_whitespace(&mut input);
 
             let original_input_len = input.len();
             match lexer::Token::extract(&mut input) {
                 lexer::Token::FixedToken(lexer::tokens::FixedToken::Newline) => {
                     contexts.extend(partials.into_iter().map(|partial| ErrorContext {
                         partial,
-                        line: &start_of_line[0..column],
+                        line: start_of_line[0..token_index].replace('\t', "    "),
                     }));
 
                     partials = Vec::new();
                     start_of_line = input;
-                    column = 0;
+                    token_index = 0;
                 }
                 _ => {
-                    column += original_input_len - input.len();
+                    token_index += original_input_len - input.len();
                 }
             }
         }
 
-        while lexer::is_skippable_whitespace(input.chars().next().unwrap()) {
-            input = &input[1..];
-            column += 1;
-        }
+        token_index += skip_whitespace(&mut input);
 
         partials.push(PartialErrorContext {
             kind: error.kind,
-            column,
+            column: token_index_to_column(start_of_line, token_index),
         });
 
         let original_input_len = input.len();
         lexer::Token::extract(&mut input);
-        column += original_input_len - input.len();
+        token_index += original_input_len - input.len();
     }
 
     if !partials.is_empty() {
@@ -196,15 +190,43 @@ fn get_error_contexts<'a, 'b, ErrorKind: Clone + std::fmt::Debug + 'b>(
             let original_input_len = input.len();
             match lexer::Token::extract(&mut input) {
                 lexer::Token::FixedToken(lexer::tokens::FixedToken::Newline) => break,
-                _ => column += original_input_len - input.len(),
+                _ => token_index += original_input_len - input.len(),
             }
         }
 
         contexts.extend(partials.into_iter().map(|partial| ErrorContext {
             partial,
-            line: &start_of_line[0..column],
+            line: start_of_line[0..token_index].replace('\t', "    "),
         }));
     }
 
     contexts
+}
+
+fn skip_whitespace(input: &mut &str) -> usize {
+    let mut skipped: usize = 0;
+
+    for c in input.chars() {
+        match c {
+            c if lexer::is_skippable_whitespace(c) => skipped += 1,
+            _ => {
+                *input = &input[skipped..];
+                break;
+            }
+        }
+    }
+
+    skipped
+}
+
+fn token_index_to_column(line: &str, token_index: usize) -> usize {
+    let mut column = token_index;
+
+    for c in line.chars().take(token_index) {
+        if c == '\t' {
+            column += 3;
+        }
+    }
+
+    column
 }
