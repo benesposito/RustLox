@@ -6,6 +6,7 @@ pub enum RuntimeError {
     VariableDoesNotExist,
     NotCallable,
     WrongNumberOfArguments,
+    TypeError,
 }
 
 pub struct Evaluator<'a> {

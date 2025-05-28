@@ -1,11 +1,10 @@
 pub mod declaration;
 
-use super::expression;
+use super::expression::{Expression, Value};
 use crate::ast::{ParseContext, ParseErrorKind, ParseResult, ShouldSynchronize};
 use crate::environment::Environment;
 use crate::evaluator::RuntimeError;
 use declaration::Declaration;
-use expression::Expression;
 
 use lexer::{Token, tokens::FixedToken};
 
@@ -14,6 +13,11 @@ pub enum Statement {
     Expression(Expression),
     Block(Vec<Box<Declaration>>),
     Print(Expression),
+    If {
+        conditional: Expression,
+        then: Box<Statement>,
+        else_: Option<Box<Statement>>,
+    },
 }
 
 impl Statement {
@@ -32,6 +36,17 @@ impl Statement {
                     statement.evaluate(&mut environment)?
                 }
                 Ok(())
+            }
+            Statement::If { conditional, then, else_ } => {
+                let Value::Boolean(conditional) = conditional.evaluate(environment)? else {
+                    return Err(RuntimeError::TypeError);
+                };
+
+                if conditional {
+                    then.evaluate(environment)
+                } else {
+                    else_.as_ref().map_or(Ok(()), |e| e.evaluate(environment))
+                }
             }
             Statement::Print(expression) => {
                 println!("{}", expression.evaluate(environment)?);
@@ -66,6 +81,38 @@ fn statement<T: Iterator<Item = Token>>(
                     .collect::<Vec<_>>(),
             ))
         }
+        Token::FixedToken(FixedToken::If) => {
+            parse_context.tokens().next();
+
+            let Some(Token::FixedToken(FixedToken::LeftParenthesis)) =
+                parse_context.tokens().next()
+            else {
+                parse_context.record_error(ParseErrorKind::UnexpectedToken);
+                return Err(ShouldSynchronize::Yes);
+            };
+
+            let conditional = Expression::parse(parse_context)?;
+
+            let Some(Token::FixedToken(FixedToken::RightParenthesis)) =
+                parse_context.tokens().next()
+            else {
+                parse_context.record_error(ParseErrorKind::UnexpectedToken);
+                return Err(ShouldSynchronize::Yes);
+            };
+
+            let then = Statement::parse(parse_context)?;
+
+            let else_ = match parse_context.tokens().next() {
+                Some(Token::FixedToken(FixedToken::Else)) => Some(Statement::parse(parse_context)?),
+                _ => None,
+            };
+
+            return Ok(Statement::If {
+                conditional,
+                then: Box::new(then),
+                else_: else_.map(Box::new),
+            });
+        }
         Token::FixedToken(FixedToken::Print) => {
             parse_context.tokens().next();
 
@@ -98,6 +145,11 @@ impl fmt::Display for Statement {
         match self {
             Statement::Expression(expression) => write!(f, "{}", expression),
             Statement::Block(statements) => write!(f, "(block {:?})", statements),
+            Statement::If {
+                conditional,
+                then,
+                else_,
+            } => write!(f, "(if {conditional} {then} {else_:?})"),
             Statement::Print(expression) => write!(f, "(print {})", expression),
         }
     }

@@ -113,7 +113,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Numeric(value) => write!(f, "{}", value),
-            Value::Str(value) => write!(f, "\"{}\"", value),
+            Value::Str(value) => write!(f, "{}", value),
             Value::Boolean(value) => write!(f, "{}", value),
             Value::Callable(_) => write!(f, "<callable>"),
             Value::Nil => write!(f, "nil"),
