@@ -121,8 +121,10 @@ name = "core"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "error",
+ "evaluator",
  "lexer",
- "lib",
+ "parser",
 ]
 
 [[package]]
@@ -130,6 +132,13 @@ name = "error"
 version = "0.1.0"
 dependencies = [
  "lexer",
+]
+
+[[package]]
+name = "evaluator"
+version = "0.1.0"
+dependencies = [
+ "parser",
 ]
 
 [[package]]
@@ -159,13 +168,7 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 [[package]]
 name = "lexer"
 version = "0.1.0"
-
-[[package]]
-name = "lib"
-version = "0.1.0"
 dependencies = [
- "error",
- "lexer",
  "rand",
  "rand_distr",
 ]
@@ -197,6 +200,14 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "parser"
+version = "0.1.0"
+dependencies = [
+ "error",
+ "lexer",
+]
 
 [[package]]
 name = "ppv-lite86"

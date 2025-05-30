@@ -1,5 +1,3 @@
-use lib::*;
-
 use clap::Parser;
 
 use std::io;
@@ -119,7 +117,7 @@ impl Interpreter {
         }
     }
 
-    fn lex_and_parse(&self, code: &str) -> Option<ast::Ast> {
+    fn lex_and_parse(&self, code: &str) -> Option<parser::Ast> {
         let tokens = match lexer::tokenize(&code) {
             Ok(tokens) => tokens,
             Err(tokens) => tokens,
@@ -129,7 +127,7 @@ impl Interpreter {
             println!("{:#?}", tokens);
         }
 
-        let ast = match ast::Ast::parse(tokens.into_iter()) {
+        let ast = match parser::Ast::new(tokens.into_iter()) {
             Ok(ast) => ast,
             Err(errors) => {
                 for context in errors.error_contexts(&code) {
@@ -141,9 +139,7 @@ impl Interpreter {
         };
 
         if self.show_ast {
-            for declaration in &ast.declaration_list.list {
-                println!("{}", declaration);
-            }
+            println!("{}", ast);
         }
 
         Some(ast)

@@ -1,4 +1,4 @@
-use crate::ast::expression::{Callable, Value};
+use crate::evaluator::{Callable, Value};
 
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -27,7 +27,7 @@ impl<'a> Environment<'_> {
 
         Environment {
             parent: None,
-            variables: variables,
+            variables,
         }
     }
 
@@ -46,13 +46,10 @@ impl<'a> Environment<'_> {
         self.variables.insert(String::from(identifier), value);
     }
 
-    pub fn lookup_variable(&self, identifier: &str) -> Option<Value> {
+    pub fn lookup_variable(&self, identifier: &str) -> Option<&Value> {
         match self.variables.get(identifier) {
-            Some(value) => Some(value.clone()),
-            None => match self.parent {
-                Some(env) => env.lookup_variable(identifier),
-                None => None,
-            },
+            Some(value) => Some(&value),
+            None => self.parent.and_then(|env| env.lookup_variable(identifier)),
         }
     }
 }

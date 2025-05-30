@@ -1,33 +1,40 @@
-use super::{BinaryOperator, Expression, UnaryOperator, Value};
-use crate::environment::Environment;
-use crate::evaluator::RuntimeError;
+use parser::grammar::{Binary, BinaryOperator, Expression, Primary, Unary, UnaryOperator};
 
-pub fn evaluate(
-    expression: &Expression,
-    environment: &mut Environment,
-) -> Result<Value, RuntimeError> {
-    match expression {
-        Expression::Grouping(expression) => expression.evaluate(environment),
-        Expression::Value(value) => Ok(value.clone()),
-        Expression::Variable(name) => match environment.lookup_variable(name) {
-            Some(value) => Ok(value),
-            None => Err(RuntimeError::VariableDoesNotExist),
-        },
-        Expression::Unary(operator, expression) => match operator {
-            UnaryOperator::Negate => match expression.evaluate(environment)? {
+use crate::environment::Environment;
+use crate::evaluator::*;
+
+impl EvaluateValue for Expression {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+        match self {
+            Expression::Unary(unary) => unary.evaluate(environment),
+            Expression::Binary(binary) => binary.evaluate(environment),
+            Expression::Primary(primary) => primary.evaluate(environment),
+        }
+    }
+}
+
+impl EvaluateValue for Unary {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+        match self.operator {
+            UnaryOperator::Negate => match self.right.evaluate(environment)? {
                 Value::Numeric(value) => Ok(Value::Numeric(-value)),
                 _ => todo!("- not yet supported for types"),
             },
-            UnaryOperator::Not => match expression.evaluate(environment)? {
+            UnaryOperator::Not => match self.right.evaluate(environment)? {
                 Value::Boolean(value) => Ok(Value::Boolean(!value)),
                 _ => todo!("! operator not yet supported for types"),
             },
-        },
-        Expression::Binary(left_expression, operator, right_expression) => match operator {
+        }
+    }
+}
+
+impl EvaluateValue for Binary {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+        match self.operator {
             BinaryOperator::Multiplication => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Numeric(left_value * right_value))
@@ -37,8 +44,8 @@ pub fn evaluate(
             }
             BinaryOperator::Division => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Numeric(left_value / right_value))
@@ -48,22 +55,22 @@ pub fn evaluate(
             }
             BinaryOperator::Addition => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Numeric(left_value + right_value))
                     }
-                    (Value::Str(left_value), Value::Str(right_value)) => {
-                        Ok(Value::Str(left_value + &right_value))
+                    (Value::String_(left_value), Value::String_(right_value)) => {
+                        Ok(Value::String_(left_value + &right_value))
                     }
                     _ => todo!("+ operator not supported for types"),
                 }
             }
             BinaryOperator::Subtraction => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Numeric(left_value - right_value))
@@ -73,8 +80,8 @@ pub fn evaluate(
             }
             BinaryOperator::Equality => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value == right_value))
@@ -86,12 +93,12 @@ pub fn evaluate(
                 }
             }
             BinaryOperator::And => {
-                let lhs = left_expression.evaluate(environment)?;
+                let lhs = self.left.evaluate(environment)?;
 
                 match lhs {
                     Value::Boolean(lhs_bool) if !lhs_bool => Ok(lhs),
                     Value::Boolean(lhs_bool) if lhs_bool => {
-                        let rhs = right_expression.evaluate(environment)?;
+                        let rhs = self.right.evaluate(environment)?;
 
                         match rhs {
                             Value::Boolean(_) => Ok(rhs),
@@ -102,12 +109,12 @@ pub fn evaluate(
                 }
             }
             BinaryOperator::Or => {
-                let lhs = left_expression.evaluate(environment)?;
+                let lhs = self.left.evaluate(environment)?;
 
                 match lhs {
                     Value::Boolean(lhs_bool) if lhs_bool => Ok(lhs),
                     Value::Boolean(lhs_bool) if !lhs_bool => {
-                        let rhs = right_expression.evaluate(environment)?;
+                        let rhs = self.right.evaluate(environment)?;
 
                         match rhs {
                             Value::Boolean(_) => Ok(rhs),
@@ -119,8 +126,8 @@ pub fn evaluate(
             }
             BinaryOperator::Inequality => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value != right_value))
@@ -133,8 +140,8 @@ pub fn evaluate(
             }
             BinaryOperator::GreaterThan => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value > right_value))
@@ -144,8 +151,8 @@ pub fn evaluate(
             }
             BinaryOperator::GreaterThanOrEqualTo => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value >= right_value))
@@ -155,8 +162,8 @@ pub fn evaluate(
             }
             BinaryOperator::LessThan => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value < right_value))
@@ -166,8 +173,8 @@ pub fn evaluate(
             }
             BinaryOperator::LessThanOrEqualTo => {
                 match (
-                    left_expression.evaluate(environment)?,
-                    right_expression.evaluate(environment)?,
+                    self.left.evaluate(environment)?,
+                    self.right.evaluate(environment)?,
                 ) {
                     (Value::Numeric(left_value), Value::Numeric(right_value)) => {
                         Ok(Value::Boolean(left_value <= right_value))
@@ -175,22 +182,42 @@ pub fn evaluate(
                     _ => todo!("<= operator not supported for types"),
                 }
             }
-        },
-        Expression::FunctionCall(callable, arguments) => {
-            let Value::Callable(callable) = callable.evaluate(environment)? else {
-                return Err(RuntimeError::NotCallable);
-            };
+        }
+    }
+}
 
-            if callable.arity() != arguments.len() {
-                return Err(RuntimeError::WrongNumberOfArguments);
+impl EvaluateValue for Primary {
+    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+        match self {
+            Primary::Call {
+                callable,
+                arguments,
+            } => {
+                let Value::Callable(callable) = callable.evaluate(environment)? else {
+                    return Err(RuntimeError::NotCallable);
+                };
+
+                if callable.arity() != arguments.len() {
+                    return Err(RuntimeError::WrongNumberOfArguments);
+                }
+
+                let arguments = arguments
+                    .into_iter()
+                    .map(|arg| arg.evaluate(environment))
+                    .collect::<Result<_, _>>()?;
+
+                Ok(callable.call(&arguments))
             }
-
-            let arguments = arguments
-                .into_iter()
-                .map(|arg| arg.evaluate(environment))
-                .collect::<Result<_, _>>()?;
-
-            Ok(callable.call(&arguments))
+            Primary::True => Ok(Value::Boolean(true)),
+            Primary::False => Ok(Value::Boolean(false)),
+            Primary::Nil => Ok(Value::Nil),
+            Primary::Number(value) => Ok(Value::Numeric(*value)),
+            Primary::String_(value) => Ok(Value::String_(value.clone())),
+            Primary::Identifier(identifier) => match environment.lookup_variable(identifier) {
+                Some(value) => Ok(value.clone()),
+                None => Err(RuntimeError::VariableDoesNotExist),
+            },
+            Primary::Grouping(expression) => expression.evaluate(environment),
         }
     }
 }

@@ -1,17 +1,9 @@
-use super::*;
+use crate::grammar::*;
+use crate::parser::*;
 
-#[derive(Debug)]
-pub struct DeclarationList {
-    pub list: Vec<Declaration>,
-}
+use lexer::{Token, tokens::FixedToken};
 
-#[derive(Debug)]
-pub enum Declaration {
-    VariableDeclaration(String, Option<Expression>),
-    Statement(Statement),
-}
-
-impl DeclarationList {
+impl Program {
     pub fn parse<T: Iterator<Item = Token>>(
         parse_context: &mut ParseContext<ParseErrorKind, T>,
     ) -> ParseResult<Self> {
@@ -42,14 +34,20 @@ impl DeclarationList {
         if list.iter().any(|x| x.is_none()) {
             Err(ShouldSynchronize::No)
         } else {
-            Ok(DeclarationList {
-                list: list.into_iter().map(|d| d.unwrap()).collect::<Vec<_>>(),
+            Ok(Self {
+                declarations: list.into_iter().map(|d| d.unwrap()).collect::<Vec<_>>(),
             })
         }
     }
+}
 
-    pub fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError> {
-        todo!()
+impl std::fmt::Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for declaration in &self.declarations {
+            writeln!(f, "{declaration}")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -89,21 +87,6 @@ impl Declaration {
                 }
             }
             _ => Ok(Declaration::Statement(Statement::parse(parse_context)?)),
-        }
-    }
-
-    pub fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError> {
-        match self {
-            Declaration::Statement(statement) => statement.evaluate(environment),
-            Declaration::VariableDeclaration(identifier, None) => {
-                environment.declare_variable(identifier);
-                Ok(())
-            }
-            Declaration::VariableDeclaration(identifier, Some(expression)) => {
-                let value = expression.evaluate(environment)?;
-                environment.define_variable(identifier, value);
-                Ok(())
-            }
         }
     }
 }

@@ -1,8 +1,3 @@
-pub mod expression;
-pub mod statement;
-
-use statement::declaration::DeclarationList;
-
 use lexer::Token;
 
 #[derive(Debug, Clone)]
@@ -15,15 +10,38 @@ pub enum ParseErrorKind {
     ExpectedIdentifier,
 }
 
-enum ShouldSynchronize {
+pub struct Ast {
+    pub program: crate::grammar::Program,
+}
+
+impl Ast {
+    pub fn new(
+        tokens: impl ExactSizeIterator<Item = Token>,
+    ) -> Result<Self, error::Errors<ParseErrorKind>> {
+        let mut parse_context = ParseContext::<ParseErrorKind, _>::new(tokens);
+
+        match crate::grammar::Program::parse(&mut parse_context) {
+            Ok(program) => Ok(Ast { program }),
+            Err(_) => Err(parse_context.errors()),
+        }
+    }
+}
+
+impl std::fmt::Display for Ast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.program)
+    }
+}
+
+pub enum ShouldSynchronize {
     Yes,
     No,
 }
 
-type ParseResult<T> = Result<T, ShouldSynchronize>;
+pub type ParseResult<T> = Result<T, ShouldSynchronize>;
 pub type ParseError = error::RecordedError<ParseErrorKind>;
 
-struct ParseContext<ErrorKind, I>
+pub struct ParseContext<ErrorKind, I>
 where
     ErrorKind: Clone + std::fmt::Debug,
     I: Iterator<Item = Token>,
@@ -56,23 +74,6 @@ where
 
     pub fn errors(self) -> error::Errors<ErrorKind> {
         self.recorder.errors()
-    }
-}
-
-pub struct Ast {
-    pub declaration_list: DeclarationList,
-}
-
-impl Ast {
-    pub fn parse(
-        tokens: impl ExactSizeIterator<Item = Token>,
-    ) -> Result<Self, error::Errors<ParseErrorKind>> {
-        let mut parse_context = ParseContext::<ParseErrorKind, _>::new(tokens);
-
-        match DeclarationList::parse(&mut parse_context) {
-            Ok(declaration_list) => Ok(Ast { declaration_list }),
-            Err(_) => Err(parse_context.errors()),
-        }
     }
 }
 
