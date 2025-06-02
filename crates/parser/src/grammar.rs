@@ -22,6 +22,12 @@ pub struct VariableDeclaration {
 #[derive(Debug)]
 pub enum Statement {
     ExpressionStatement(Expression),
+    ForStatement {
+        initializer: ForLoopInitializer,
+        condition: Option<Expression>,
+        expression: Option<Expression>,
+        body: Box<Statement>,
+    },
     IfStatement {
         condition: Expression,
         then: Box<Statement>,
@@ -33,6 +39,12 @@ pub enum Statement {
         body: Box<Statement>,
     },
     Block(Block),
+}
+
+#[derive(Debug)]
+pub enum ForLoopInitializer {
+    Declaration(VariableDeclaration),
+    //Definition(),
 }
 
 #[derive(Debug)]
