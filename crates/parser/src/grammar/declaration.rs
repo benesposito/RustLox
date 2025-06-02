@@ -56,37 +56,48 @@ impl Declaration {
         parse_context: &mut ParseContext<T>,
     ) -> ParseResult<Self> {
         match parse_context.tokens().peek().expect("Expected tokens") {
-            Token::FixedToken(FixedToken::Var) => {
+            Token::FixedToken(FixedToken::Var) => Ok(Declaration::VariableDeclaration(
+                VariableDeclaration::parse(parse_context)?,
+            )),
+            _ => Ok(Declaration::Statement(Statement::parse(parse_context)?)),
+        }
+    }
+}
+
+impl VariableDeclaration {
+    pub fn parse<T: Iterator<Item = Token>>(
+        parse_context: &mut ParseContext<T>,
+    ) -> ParseResult<Self> {
+        parse_context.tokens().next();
+
+        let identifier = match parse_context.tokens().next() {
+            Some(Token::Identifier(identifier)) => identifier,
+            _ => {
+                parse_context.record_error(ParseErrorKind::ExpectedIdentifier);
+                return Err(ShouldSynchronize::Yes);
+            }
+        };
+
+        let declaration = match parse_context.tokens().peek() {
+            Some(Token::FixedToken(FixedToken::Equal)) => {
                 parse_context.tokens().next();
-
-                let identifier = match parse_context.tokens().next() {
-                    Some(Token::Identifier(identifier)) => identifier,
-                    _ => {
-                        parse_context.record_error(ParseErrorKind::ExpectedIdentifier);
-                        return Err(ShouldSynchronize::Yes);
-                    }
-                };
-
-                let declaration = match parse_context.tokens().peek() {
-                    Some(Token::FixedToken(FixedToken::Equal)) => {
-                        parse_context.tokens().next();
-                        Declaration::VariableDeclaration(
-                            identifier.name,
-                            Some(Expression::parse(parse_context)?),
-                        )
-                    }
-                    _ => Declaration::VariableDeclaration(identifier.name, None),
-                };
-
-                match parse_context.tokens().next() {
-                    Some(Token::FixedToken(FixedToken::Semicolon)) => Ok(declaration),
-                    _ => {
-                        parse_context.record_error(ParseErrorKind::ExpectedSemicolon);
-                        Err(ShouldSynchronize::Yes)
-                    }
+                Self {
+                    identifier: identifier.name,
+                    value: Some(Expression::parse(parse_context)?),
                 }
             }
-            _ => Ok(Declaration::Statement(Statement::parse(parse_context)?)),
+            _ => Self {
+                identifier: identifier.name,
+                value: None,
+            },
+        };
+
+        match parse_context.tokens().next() {
+            Some(Token::FixedToken(FixedToken::Semicolon)) => Ok(declaration),
+            _ => {
+                parse_context.record_error(ParseErrorKind::ExpectedSemicolon);
+                Err(ShouldSynchronize::Yes)
+            }
         }
     }
 }
@@ -94,8 +105,12 @@ impl Declaration {
 impl std::fmt::Display for Declaration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Declaration::VariableDeclaration(identifier, rhs) => {
-                write!(f, "(declare-variable {} {:?})", identifier, rhs)
+            Declaration::VariableDeclaration(variable_declaration) => {
+                write!(
+                    f,
+                    "(declare-variable {} {:?})",
+                    variable_declaration.identifier, variable_declaration.value
+                )
             }
             Declaration::Statement(statement) => statement.fmt(f),
         }

@@ -14,7 +14,7 @@ impl EvaluateValue for Expression {
 }
 
 impl EvaluateValue for Unary {
-    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+    fn evaluate(&self, environment: &mut Environment) -> EvaluatorResult<Value> {
         match self.operator {
             UnaryOperator::Negate => match self.right.evaluate(environment)? {
                 Value::Numeric(value) => Ok(Value::Numeric(-value)),
@@ -29,7 +29,7 @@ impl EvaluateValue for Unary {
 }
 
 impl EvaluateValue for Binary {
-    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+    fn evaluate(&self, environment: &mut Environment) -> EvaluatorResult<Value> {
         match self.operator {
             BinaryOperator::Multiplication => {
                 match (
@@ -187,7 +187,7 @@ impl EvaluateValue for Binary {
 }
 
 impl EvaluateValue for Primary {
-    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+    fn evaluate(&self, environment: &mut Environment) -> EvaluatorResult<Value> {
         match self {
             Primary::Call {
                 callable,

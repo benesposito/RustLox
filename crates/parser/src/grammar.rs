@@ -9,8 +9,14 @@ pub struct Program {
 
 #[derive(Debug)]
 pub enum Declaration {
-    VariableDeclaration(String, Option<Expression>),
+    VariableDeclaration(VariableDeclaration),
     Statement(Statement),
+}
+
+#[derive(Debug)]
+pub struct VariableDeclaration {
+    pub identifier: String,
+    pub value: Option<Expression>,
 }
 
 #[derive(Debug)]
