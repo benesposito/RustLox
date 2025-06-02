@@ -6,10 +6,14 @@ impl Evaluate for Statement {
         match self {
             Statement::ExpressionStatement(expression) => expression.evaluate(environment).map(|_| ()),
             Statement::Block(block) => {
-                let mut environment = Environment::inner(environment);
+                environment.push();
+
                 for statement in &block.statements {
-                    statement.evaluate(&mut environment)?
+                    statement.evaluate(environment)?;
                 }
+
+                environment.pop();
+
                 Ok(())
             }
             Statement::IfStatement { conditional, then, else_ } => {

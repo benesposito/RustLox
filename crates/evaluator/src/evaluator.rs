@@ -8,11 +8,14 @@ use crate::environment::Environment;
 
 #[derive(Debug)]
 pub enum RuntimeError {
+    VariableRedefinition,
     VariableDoesNotExist,
     NotCallable,
     WrongNumberOfArguments,
     TypeError,
 }
+
+pub type EvaluatorResult<T> = Result<T, RuntimeError>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -30,6 +33,12 @@ impl Value {
             Value::Nil => false,
             _ => true,
         }
+    }
+}
+
+impl From<Option<Self>> for Value {
+    fn from(value: Option<Self>) -> Self {
+        value.unwrap_or(Value::Nil)
     }
 }
 
@@ -73,14 +82,14 @@ trait Evaluate {
     fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError>;
 }
 
-pub struct Evaluator<'a> {
-    pub environment: Environment<'a>,
+pub struct Evaluator {
+    pub environment: Environment,
 }
 
-impl<'a> Evaluator<'_> {
+impl Evaluator {
     pub fn new() -> Self {
         Evaluator {
-            environment: Environment::global(),
+            environment: Environment::new(),
         }
     }
 

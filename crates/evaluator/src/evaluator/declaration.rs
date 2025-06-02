@@ -11,13 +11,13 @@ impl Evaluate for Declaration {
     fn evaluate(&self, environment: &mut Environment) -> Result<(), RuntimeError> {
         match self {
             Declaration::Statement(statement) => statement.evaluate(environment),
-            Declaration::VariableDeclaration(identifier, None) => {
-                environment.declare_variable(identifier);
-                Ok(())
-            }
-            Declaration::VariableDeclaration(identifier, Some(expression)) => {
-                let value = expression.evaluate(environment)?;
-                environment.define_variable(identifier, value);
+            Declaration::VariableDeclaration(identifier, value) => {
+                let value = match value {
+                    Some(value) => Some(value.evaluate(environment)?),
+                    None => None,
+                };
+        
+                environment.declare_variable(identifier, Value::from(value))?;
                 Ok(())
             }
         }
