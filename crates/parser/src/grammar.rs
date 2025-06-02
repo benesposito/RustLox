@@ -38,6 +38,10 @@ pub struct Block {
 
 #[derive(Debug)]
 pub enum Expression {
+    Assignment{
+        identifier: String,
+        value: Box<Expression>,
+    },
     Unary(Unary),
     Binary(Binary),
     Primary(Primary),

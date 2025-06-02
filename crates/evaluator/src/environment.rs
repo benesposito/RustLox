@@ -62,6 +62,16 @@ impl Environment {
         None
     }
 
+    pub fn assign_variable(&mut self, identifier: &str, value: Value) -> EvaluatorResult<Value> {
+        for frame in self.stack.iter_mut().rev() {
+            if let Some(value_ref) = frame.lookup_variable_mut(identifier) {
+                *value_ref = value;
+                return Ok(value_ref.clone())
+            }
+        }
+
+        Err(RuntimeError::VariableDoesNotExist)
+    }
 }
 
 impl Frame {

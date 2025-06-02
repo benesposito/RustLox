@@ -14,7 +14,29 @@ impl Expression {
 fn expression<T: Iterator<Item = Token>>(
     parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
-    logical_or(parse_context)
+    assignment(parse_context)
+}
+
+fn assignment<T: Iterator<Item = Token>>(
+    parse_context: &mut ParseContext<T>,
+) -> ParseResult<Expression> {
+    let expr = logical_or(parse_context)?;
+
+    if let Expression::Primary(Primary::Identifier(identifier)) = &expr {
+        match parse_context.tokens().peek().expect("Expected tokens") {
+            Token::FixedToken(FixedToken::Equal) => {
+                parse_context.tokens().next();
+                let value = Expression::parse(parse_context)?;
+                return Ok(Expression::Assignment {
+                    identifier: identifier.clone(),
+                    value: Box::new(value),
+                });
+            }
+            _ => (),
+        }
+    }
+
+    Ok(expr)
 }
 
 fn logical_or<T: Iterator<Item = Token>>(
@@ -285,6 +307,9 @@ use std::fmt;
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expression::Assignment { identifier, value } => {
+                write!(f, "(assign {identifier} {value})")
+            }
             Expression::Primary(value) => write!(f, "{}", value),
             Expression::Unary(unary) => {
                 write!(f, "({} {})", unary.operator, unary.right)

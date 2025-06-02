@@ -4,8 +4,14 @@ use crate::environment::Environment;
 use crate::evaluator::*;
 
 impl EvaluateValue for Expression {
-    fn evaluate(&self, environment: &mut Environment) -> Result<Value, RuntimeError> {
+    fn evaluate(&self, environment: &mut Environment) -> EvaluatorResult<Value> {
         match self {
+            Expression::Assignment { identifier, value } => {
+                let value = value.evaluate(environment)?;
+
+                environment.assign_variable(identifier, value)?;
+                Ok(environment.lookup_variable(identifier).unwrap())
+            }
             Expression::Unary(unary) => unary.evaluate(environment),
             Expression::Binary(binary) => binary.evaluate(environment),
             Expression::Primary(primary) => primary.evaluate(environment),
