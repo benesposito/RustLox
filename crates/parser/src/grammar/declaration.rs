@@ -5,7 +5,7 @@ use lexer::{Token, tokens::FixedToken};
 
 impl Program {
     pub fn parse<T: Iterator<Item = Token>>(
-        parse_context: &mut ParseContext<ParseErrorKind, T>,
+        parse_context: &mut ParseContext<T>,
     ) -> ParseResult<Self> {
         let mut list: Vec<Option<Declaration>> = Vec::new();
 
@@ -53,7 +53,7 @@ impl std::fmt::Display for Program {
 
 impl Declaration {
     pub fn parse<T: Iterator<Item = Token>>(
-        parse_context: &mut ParseContext<ParseErrorKind, T>,
+        parse_context: &mut ParseContext<T>,
     ) -> ParseResult<Self> {
         match parse_context.tokens().peek().expect("Expected tokens") {
             Token::FixedToken(FixedToken::Var) => {

@@ -9,6 +9,7 @@ pub struct RecordedError<ErrorKind> {
     pub kind: ErrorKind,
 }
 
+#[derive(Debug)]
 pub struct Errors<ErrorKind> {
     errors: Vec<RecordedError<ErrorKind>>,
 }

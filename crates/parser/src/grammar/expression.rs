@@ -1,24 +1,24 @@
-use lexer::{Token, tokens::FixedToken};
+use lexer::{tokens::FixedToken, Token};
 
 use crate::grammar::*;
 use crate::parser::*;
 
 impl Expression {
     pub fn parse<T: Iterator<Item = Token>>(
-        parse_context: &mut ParseContext<ParseErrorKind, T>,
+        parse_context: &mut ParseContext<T>,
     ) -> ParseResult<Self> {
         expression(parse_context)
     }
 }
 
 fn expression<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     logical_or(parse_context)
 }
 
 fn logical_or<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     let mut expression = logical_and(parse_context)?;
 
@@ -45,7 +45,7 @@ fn logical_or<T: Iterator<Item = Token>>(
 }
 
 fn logical_and<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     let mut expression = equality(parse_context)?;
 
@@ -72,7 +72,7 @@ fn logical_and<T: Iterator<Item = Token>>(
 }
 
 fn equality<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     let mut expression = comparison(parse_context)?;
 
@@ -100,7 +100,7 @@ fn equality<T: Iterator<Item = Token>>(
 }
 
 fn comparison<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     let mut expression = term(parse_context)?;
 
@@ -128,9 +128,7 @@ fn comparison<T: Iterator<Item = Token>>(
     }
 }
 
-fn term<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
-) -> ParseResult<Expression> {
+fn term<T: Iterator<Item = Token>>(parse_context: &mut ParseContext<T>) -> ParseResult<Expression> {
     let mut expression = factor(parse_context)?;
 
     loop {
@@ -157,7 +155,7 @@ fn term<T: Iterator<Item = Token>>(
 }
 
 fn factor<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     let mut expression = unary(parse_context)?;
 
@@ -185,7 +183,7 @@ fn factor<T: Iterator<Item = Token>>(
 }
 
 fn unary<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Expression> {
     let operator = match parse_context
         .tokens()
@@ -205,9 +203,7 @@ fn unary<T: Iterator<Item = Token>>(
     }))
 }
 
-fn call<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
-) -> ParseResult<Expression> {
+fn call<T: Iterator<Item = Token>>(parse_context: &mut ParseContext<T>) -> ParseResult<Expression> {
     let callable = Primary::parse(parse_context)?;
 
     let Some(Token::FixedToken(FixedToken::LeftParenthesis)) = parse_context.tokens().peek() else {
@@ -247,7 +243,7 @@ fn call<T: Iterator<Item = Token>>(
 
 impl Primary {
     pub fn parse<T: Iterator<Item = Token>>(
-        parse_context: &mut ParseContext<ParseErrorKind, T>,
+        parse_context: &mut ParseContext<T>,
     ) -> ParseResult<Self> {
         match parse_context
             .tokens()

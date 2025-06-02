@@ -18,7 +18,7 @@ impl Ast {
     pub fn new(
         tokens: impl ExactSizeIterator<Item = Token>,
     ) -> Result<Self, error::Errors<ParseErrorKind>> {
-        let mut parse_context = ParseContext::<ParseErrorKind, _>::new(tokens);
+        let mut parse_context = ParseContext::<_>::new(tokens);
 
         match crate::grammar::Program::parse(&mut parse_context) {
             Ok(program) => Ok(Ast { program }),
@@ -41,38 +41,50 @@ pub enum ShouldSynchronize {
 pub type ParseResult<T> = Result<T, ShouldSynchronize>;
 pub type ParseError = error::RecordedError<ParseErrorKind>;
 
-pub struct ParseContext<ErrorKind, I>
+pub struct ParseContext<I>
 where
-    ErrorKind: Clone + std::fmt::Debug,
     I: Iterator<Item = Token>,
 {
-    recorder: error::ErrorRecorder<ErrorKind, I>,
+    recorder: error::ErrorRecorder<ParseErrorKind, I>,
 }
 
-impl<ErrorKind: Clone + std::fmt::Debug> ParseContext<ErrorKind, error::DummyIterator> {
+impl ParseContext<error::DummyIterator> {
     pub fn new<I: ExactSizeIterator<Item = Token>>(
         tokens: I,
-    ) -> ParseContext<ErrorKind, impl Iterator<Item = Token>> {
+    ) -> ParseContext<impl Iterator<Item = Token>> {
         ParseContext {
             recorder: error::ErrorRecorder::new(tokens),
         }
     }
 }
 
-impl<ErrorKind, I> ParseContext<ErrorKind, I>
+impl<I> ParseContext<I>
 where
-    ErrorKind: Clone + std::fmt::Debug,
     I: Iterator<Item = Token>,
 {
     pub fn tokens(&mut self) -> &mut std::iter::Peekable<impl Iterator<Item = Token>> {
         self.recorder.tokens()
     }
 
-    pub fn record_error(&mut self, kind: ErrorKind) {
+    pub fn match_token(&mut self, token: lexer::tokens::FixedToken) -> ParseResult<()> {
+        match self.tokens().next() {
+            Some(Token::FixedToken(actual_token))
+                if std::mem::discriminant(&actual_token) == std::mem::discriminant(&token) =>
+            {
+                Ok(())
+            }
+            _ => {
+                self.record_error(ParseErrorKind::UnexpectedToken);
+                Err(ShouldSynchronize::Yes)
+            }
+        }
+    }
+
+    pub fn record_error(&mut self, kind: ParseErrorKind) {
         self.recorder.record(kind)
     }
 
-    pub fn errors(self) -> error::Errors<ErrorKind> {
+    pub fn errors(self) -> error::Errors<ParseErrorKind> {
         self.recorder.errors()
     }
 }

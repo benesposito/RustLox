@@ -5,16 +5,14 @@ use crate::parser::*;
 
 impl Statement {
     pub fn parse<T: Iterator<Item = Token>>(
-        parse_context: &mut ParseContext<ParseErrorKind, T>,
+        parse_context: &mut ParseContext<T>,
     ) -> ParseResult<Self> {
         statement(parse_context)
     }
 }
 
 impl Block {
-    fn parse<T: Iterator<Item = Token>>(
-        parse_context: &mut ParseContext<ParseErrorKind, T>,
-    ) -> ParseResult<Self> {
+    fn parse<T: Iterator<Item = Token>>(parse_context: &mut ParseContext<T>) -> ParseResult<Self> {
         parse_context.tokens().next();
 
         let mut declarations: Vec<Declaration> = Vec::new();
@@ -35,7 +33,7 @@ impl Block {
 }
 
 fn statement<T: Iterator<Item = Token>>(
-    parse_context: &mut ParseContext<ParseErrorKind, T>,
+    parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Statement> {
     match parse_context.tokens().peek().expect("Expected tokens") {
         Token::FixedToken(FixedToken::LeftBrace) => {
@@ -44,21 +42,9 @@ fn statement<T: Iterator<Item = Token>>(
         Token::FixedToken(FixedToken::If) => {
             parse_context.tokens().next();
 
-            let Some(Token::FixedToken(FixedToken::LeftParenthesis)) =
-                parse_context.tokens().next()
-            else {
-                parse_context.record_error(ParseErrorKind::UnexpectedToken);
-                return Err(ShouldSynchronize::Yes);
-            };
-
+            parse_context.match_token(FixedToken::LeftParenthesis)?;
             let conditional = Expression::parse(parse_context)?;
-
-            let Some(Token::FixedToken(FixedToken::RightParenthesis)) =
-                parse_context.tokens().next()
-            else {
-                parse_context.record_error(ParseErrorKind::UnexpectedToken);
-                return Err(ShouldSynchronize::Yes);
-            };
+            parse_context.match_token(FixedToken::RightParenthesis)?;
 
             let then = Statement::parse(parse_context)?;
 
