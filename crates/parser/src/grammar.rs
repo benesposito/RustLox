@@ -23,11 +23,15 @@ pub struct VariableDeclaration {
 pub enum Statement {
     ExpressionStatement(Expression),
     IfStatement {
-        conditional: Expression,
+        condition: Expression,
         then: Box<Statement>,
         else_: Option<Box<Statement>>,
     },
     PrintStatement(Expression),
+    WhileStatement {
+        condition: Expression,
+        body: Box<Statement>,
+    },
     Block(Block),
 }
 

@@ -36,14 +36,11 @@ fn statement<T: Iterator<Item = Token>>(
     parse_context: &mut ParseContext<T>,
 ) -> ParseResult<Statement> {
     match parse_context.tokens().peek().expect("Expected tokens") {
-        Token::FixedToken(FixedToken::LeftBrace) => {
-            Block::parse(parse_context).map(Statement::Block)
-        }
         Token::FixedToken(FixedToken::If) => {
             parse_context.tokens().next();
 
             parse_context.match_token(FixedToken::LeftParenthesis)?;
-            let conditional = Expression::parse(parse_context)?;
+            let condition = Expression::parse(parse_context)?;
             parse_context.match_token(FixedToken::RightParenthesis)?;
 
             let then = Statement::parse(parse_context)?;
@@ -54,7 +51,7 @@ fn statement<T: Iterator<Item = Token>>(
             };
 
             return Ok(Statement::IfStatement {
-                conditional,
+                condition,
                 then: Box::new(then),
                 else_: else_.map(Box::new),
             });
@@ -70,6 +67,24 @@ fn statement<T: Iterator<Item = Token>>(
                     Err(ShouldSynchronize::Yes)
                 }
             }
+        }
+        Token::FixedToken(FixedToken::While) => {
+            parse_context.tokens().next();
+            parse_context.match_token(FixedToken::LeftParenthesis)?;
+
+            let condition = Expression::parse(parse_context)?;
+
+            parse_context.match_token(FixedToken::RightParenthesis)?;
+
+            let body = Statement::parse(parse_context)?;
+
+            return Ok(Statement::WhileStatement {
+                condition,
+                body: Box::new(body),
+            });
+        }
+        Token::FixedToken(FixedToken::LeftBrace) => {
+            Block::parse(parse_context).map(Statement::Block)
         }
         _ => {
             let statement = Statement::ExpressionStatement(Expression::parse(parse_context)?);
@@ -91,11 +106,14 @@ impl fmt::Display for Statement {
         match self {
             Statement::ExpressionStatement(expression) => write!(f, "{}", expression),
             Statement::IfStatement {
-                conditional,
+                condition,
                 then,
                 else_,
-            } => write!(f, "(if {conditional} {then} {else_:?})"),
+            } => write!(f, "(if {condition} {then} {else_:?})"),
             Statement::PrintStatement(expression) => write!(f, "(print {})", expression),
+            Statement::WhileStatement { condition, body } => {
+                write!(f, "(while {condition} {body})")
+            }
             Statement::Block(statements) => write!(f, "(block {:?})", statements),
         }
     }

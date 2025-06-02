@@ -16,16 +16,26 @@ impl Evaluate for Statement {
 
                 Ok(())
             }
-            Statement::IfStatement { conditional, then, else_ } => {
-                let Value::Boolean(conditional) = conditional.evaluate(environment)? else {
+            Statement::IfStatement {
+                condition,
+                then,
+                else_,
+            } => {
+                let Value::Boolean(condition) = condition.evaluate(environment)? else {
                     return Err(RuntimeError::TypeError);
                 };
 
-                if conditional {
+                if condition {
                     then.evaluate(environment)
                 } else {
                     else_.as_ref().map_or(Ok(()), |e| e.evaluate(environment))
                 }
+            }
+            Statement::WhileStatement { condition, body } => {
+                while condition.evaluate(environment)?.is_truthy() {
+                    body.evaluate(environment)?;
+                }
+                Ok(())
             }
             Statement::PrintStatement(expression) => {
                 println!("{}", expression.evaluate(environment)?);
